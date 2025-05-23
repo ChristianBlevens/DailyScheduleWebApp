@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Habit Tracker</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    
+    <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+        import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+        
+        const firebaseConfig = {
+            apiKey: "demo-key",
+            authDomain: "demo.firebaseapp.com",
+            projectId: "demo-project",
+            storageBucket: "demo.appspot.com",
+            messagingSenderId: "123456789",
+            appId: "demo-app"
+        };
+        
+        try {
+            window.firebaseApp = initializeApp(firebaseConfig);
+            window.db = getFirestore(window.firebaseApp);
+        } catch (error) {
+            console.log('Firebase not configured, using localStorage');
+            window.db = null;
+        }
+    </script>
+    
+    <link rel="stylesheet" href="styles.css">
+    <script src="app_helpers.js"></script>
+    <script src="main.js"></script>
+</head>
+<body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen font-['Inter']">
+    <div x-data="habitTracker" x-init="init()" class="max-w-6xl mx-auto min-h-screen bg-white shadow-2xl overflow-x-hidden">
+        
+        <!-- Drag Time Indicator -->
+        <div x-show="isDragging" 
+             x-transition
+             class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50">
+            <div class="text-lg font-semibold" x-text="dragTimeDisplay"></div>
+        </div>
+        
+        <!-- Header -->
+        <header class="sticky top-0 z-40 bg-blue-600 text-white p-4">
+            <div class="flex justify-between items-center">
+                <h1 class="text-xl font-bold">Daily Habits Timeline</h1>
+                <div class="flex gap-2">
+                    <button @click="showAnalytics = !showAnalytics" class="p-2 hover:bg-blue-700 rounded">
+                        <i class="fas fa-chart-line"></i>
+                    </button>
+                    <button x-show="isAwake" @click="endDay()" class="p-2 hover:bg-blue-700 rounded">
+                        <i class="fas fa-moon"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="text-sm opacity-90 mt-1" x-text="new Date().toLocaleDateString()"></div>
+            <div class="text-sm opacity-75" x-show="isAwake" x-text="`Wake time: ${formatTime(wakeUpTime)} (${getTimeAgo()})`"></div>
+        </header>
+
+        <!-- Wake Up Screen -->
+        <div x-show="!isAwake" class="flex items-center justify-center h-96 p-8 text-center">
+            <div class="space-y-4">
+                <div class="text-6xl wake-up-animation">🌅</div>
+                <h2 class="text-2xl font-bold text-gray-800">Good Morning!</h2>
+                <div class="space-y-2">
+                    <label class="block text-sm font-medium text-gray-700">Wake up time:</label>
+                    <input type="time" x-model="wakeUpTime" class="border rounded px-3 py-2" readonly>
+                </div>
+                <div>
+					<button @click="wakeUp()" class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xl font-bold py-4 px-8 rounded-full shadow-lg hover:scale-105 transition">
+						<i class="fas fa-sun mr-3"></i>Start Day!
+					</button>
+				</div>
+				<div>
+					<button @click="wakeUpTime = getCurrentTime()" class="text-sm text-blue-600 hover:text-blue-800 underline">
+						Update to current time
+					</button>
+				</div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <main x-show="isAwake && !showAnalytics" class="pb-20 overflow-visible">
+            
+            <!-- Progress Bar -->
+            <div class="p-4 bg-gray-50 border-b">
+                <div class="flex justify-between text-sm mb-2">
+                    <span>Progress</span>
+                    <span x-text="`${completedCount}/${habits.length}`"></span>
+                </div>
+                <div class="bg-gray-200 rounded-full h-3">
+                    <div class="bg-green-500 h-3 rounded-full transition-all progress-bar" :style="`width: ${progressPercent}%`"></div>
+                </div>
+            </div>
+
+            <!-- Tag Filters -->
+            <div x-show="availableTags.length" class="p-4 bg-gray-100 border-b">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium">Filter Tags</span>
+                    <button x-show="selectedTags.length" @click="selectedTags = []" class="text-xs text-blue-600">Clear</button>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                    <template x-for="tag in availableTags">
+                        <button @click="toggleTagFilter(tag)" 
+                                :class="selectedTags.includes(tag) ? 'bg-blue-500 text-white' : 'bg-white'" 
+                                class="text-xs px-2 py-1 rounded border tag-filter" 
+                                x-text="tag"></button>
+                    </template>
+                </div>
+            </div>
+
+            <!-- Timeline Container -->
+            <div class="timeline-container relative" @mousemove="handleDragMove($event)" @mouseup="handleDragEnd()">
+                <!-- Hour grid lines -->
+                <template x-for="(timeSlot, index) in timeSlots" :key="'line_' + index">
+                    <div x-show="timeSlot && (timeSlot.type === 'hour' || timeSlot.type === 'wake')" 
+                         class="hour-line" 
+                         :class="{ 'major': timeSlot.type === 'wake' || (timeSlot.hour && timeSlot.hour % 6 === 0) }"
+                         :style="`top: ${timeSlot.position || 0}px`"></div>
+                </template>
+                
+                <!-- Current time indicator -->
+                <div class="current-time-line current-time-indicator" :style="`top: ${currentTimePosition}px`"></div>
+                
+                <!-- Drag position indicator -->
+                <div x-show="isDragging" 
+                     class="drag-position-indicator" 
+                     :style="`top: ${dragPosition}px`"></div>
+                
+                <!-- Timeline Ruler -->
+                <div class="timeline-ruler">
+                    <template x-for="(timeSlot, index) in timeSlots" :key="'ruler_' + index">
+                        <div>
+                            <!-- Ruler tick marks -->
+                            <div class="ruler-tick"
+                                 :class="{
+                                     'major': timeSlot && (timeSlot.type === 'hour' || timeSlot.type === 'wake'),
+                                     'medium': timeSlot && timeSlot.type === 'half',
+                                     'minor': timeSlot && timeSlot.type === 'quarter',
+                                     'micro': timeSlot && timeSlot.type === 'minor',
+                                     'habit': timeSlot && timeSlot.type === 'habit'
+                                 }"
+                                 :style="`top: ${(timeSlot && timeSlot.position) || 0}px`"></div>
+                            
+                            <!-- Time labels (only for hours and wake time) -->
+                            <div x-show="timeSlot && timeSlot.displayLabel"
+                                 class="ruler-label" 
+                                 :class="{ 
+                                     'wake': timeSlot && timeSlot.type === 'wake'
+                                 }"
+                                 :style="`top: ${(timeSlot && timeSlot.position) || 0}px`" 
+                                 x-text="(timeSlot && timeSlot.label) || ''">
+                            </div>
+                        </div>
+                    </template>
+                    
+                    <!-- Drag marker on ruler -->
+                    <div x-show="isDragging" 
+                         class="drag-ruler-marker" 
+                         :style="`top: ${dragPosition}px`"></div>
+                </div>
+                
+                <!-- Event Tiles -->
+                <div id="habits-container" class="relative pb-20">
+                    <template x-for="habit in filteredHabits" :key="habit.id">
+                        <div class="event-tile habit-item" 
+                             :class="{
+                                 'bg-green-50 border-green-500': habit.completed,
+                                 'bg-green-100 border-green-600 shadow-lg': habit.isCurrent && !habit.completed,
+                                 'bg-red-50 border-red-500 shadow-lg': habit.isOverdue && !habit.completed,
+                                 'expanded': habit.expanded
+                             }"
+                             :style="`top: ${habit.position - 35}px; background-color: ${habit.bgColor}`"
+                             :data-habit-id="habit.id">
+                            
+                            <div class="flex items-center justify-between h-[44px]">
+                                <div class="flex items-center gap-3 flex-1">
+                                    <button @click="toggleCompletion(habit)" 
+                                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all flex-shrink-0" 
+                                            :class="habit.completed ? 'bg-green-500 border-green-500 text-white scale-110' : 'border-gray-300 hover:border-green-400'">
+                                        <i x-show="habit.completed" class="fas fa-check text-xs"></i>
+                                    </button>
+                                    
+                                    <div class="flex-1 min-w-0">
+                                        <h3 class="font-semibold transition-all truncate text-gray-800" 
+                                            :class="{'line-through text-gray-500': habit.completed}" 
+                                            x-text="habit.title"></h3>
+                                        <div class="text-sm text-gray-600 flex gap-3 items-center">
+                                            <span class="font-mono font-medium" x-text="formatTime(habit.effectiveTime)"></span>
+                                            <span x-show="habit.duration" 
+                                                  class="bg-blue-100 text-blue-800 px-2 py-0.5 rounded text-xs" 
+                                                  x-text="`${habit.duration}min`"></span>
+                                            <span x-show="habit.isDynamic" 
+                                                  class="bg-orange-100 text-orange-800 px-2 py-0.5 rounded text-xs">Dynamic</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex items-center gap-2 flex-shrink-0">
+                                    <button @click="habit.expanded = !habit.expanded" class="text-gray-400 hover:text-gray-600 p-1">
+                                        <i class="fas fa-chevron-down transition-transform" 
+                                           :class="{'rotate-180': habit.expanded}"></i>
+                                    </button>
+                                    <button @click="editHabit(habit)" class="text-gray-400 hover:text-blue-600 p-1">
+                                        <i class="fas fa-edit"></i>
+                                    </button>
+                                    <button @click="deleteHabit(habit)" class="text-gray-400 hover:text-red-600 p-1">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                    <div class="drag-handle cursor-grab text-gray-400 p-1 hover:text-blue-600">
+                                        <i class="fas fa-grip-vertical"></i>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Expanded Content -->
+                            <div x-show="habit.expanded" x-transition class="mt-4 space-y-3">
+                                <div x-show="habit.description" 
+                                     class="text-gray-600 text-sm markdown-content" 
+                                     x-html="parseMarkdown(habit.description)"></div>
+                                
+                                <div x-show="habit.subHabits && habit.subHabits.length">
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Sub-tasks:</h4>
+                                    <template x-for="subHabit in habit.subHabits">
+                                        <div class="p-2 bg-gray-50 rounded text-sm space-y-2">
+                                            <div class="flex items-center gap-2">
+                                                <button @click="toggleSubHabit(habit, subHabit)" 
+                                                        class="w-4 h-4 rounded border flex items-center justify-center flex-shrink-0" 
+                                                        :class="subHabit.completed ? 'bg-green-500 text-white border-green-500' : 'border-gray-300'">
+                                                    <i x-show="subHabit.completed" class="fas fa-check text-xs"></i>
+                                                </button>
+                                                <span x-text="subHabit.title" :class="{'line-through text-gray-500': subHabit.completed}"></span>
+                                            </div>
+                                            <div x-show="subHabit.description" 
+                                                 class="text-gray-600 text-xs pl-6 markdown-content" 
+                                                 x-html="parseMarkdown(subHabit.description)"></div>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <!-- Empty State -->
+                <div x-show="!filteredHabits || filteredHabits.length === 0" class="flex items-center justify-center p-20">
+                    <div class="text-center bg-white rounded-lg p-8 shadow-xl">
+                        <div class="text-gray-400 text-4xl mb-4">📅</div>
+                        <button @click="showModal = true" 
+                                class="bg-blue-500 text-white py-3 px-6 rounded-lg hover:bg-blue-600 transition shadow-lg">
+                            <i class="fas fa-plus mr-2"></i>Add Your First Habit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Analytics -->
+        <div x-show="showAnalytics" class="p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold">Analytics</h2>
+                <button @click="showAnalytics = false" class="text-gray-500 hover:text-gray-700">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-6 mb-8">
+                <div class="bg-blue-50 p-6 rounded-xl text-center">
+                    <div class="text-3xl font-bold text-blue-600" x-text="streak"></div>
+                    <div class="text-sm text-blue-700">Day Streak</div>
+                </div>
+                <div class="bg-green-50 p-6 rounded-xl text-center">
+                    <div class="text-3xl font-bold text-green-600" x-text="weeklyRate + '%'"></div>
+                    <div class="text-sm text-green-700">Weekly Rate</div>
+                </div>
+            </div>
+
+            <div x-show="dailyStats" class="space-y-4">
+                <h3 class="text-lg font-semibold">Performance Comparison</h3>
+                <div class="bg-gray-50 p-6 rounded-xl space-y-4">
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">Today:</span>
+                        <span x-text="`${dailyStats.today.completed}/${dailyStats.today.total} (${dailyStats.today.rate}%)`"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">Yesterday:</span>
+                        <span x-text="`${dailyStats.yesterday.completed}/${dailyStats.yesterday.total} (${dailyStats.yesterday.rate}%)`"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">This Week:</span>
+                        <span x-text="`${dailyStats.week.completed}/${dailyStats.week.total} (${dailyStats.week.rate}%)`"></span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium">All Time:</span>
+                        <span x-text="`${dailyStats.allTime.completed}/${dailyStats.allTime.total} (${dailyStats.allTime.rate}%)`"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Floating Add Button -->
+        <button x-show="isAwake" @click="showModal = true" 
+                class="fixed bottom-6 right-6 w-16 h-16 bg-blue-500 text-white rounded-full shadow-xl hover:scale-110 transition z-50 btn-float no-print">
+            <i class="fas fa-plus text-xl"></i>
+        </button>
+
+        <!-- Modal -->
+        <div x-show="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4 modal-backdrop">
+            <div class="bg-white rounded-xl w-full max-w-md max-h-[90vh] overflow-y-auto shadow-2xl modal-scroll">
+                <div class="p-6 border-b flex justify-between items-center">
+                    <h3 class="text-xl font-semibold" x-text="editingHabit ? 'Edit Habit' : 'New Habit'"></h3>
+                    <div class="flex items-center gap-2">
+                        <button @click="showMarkdownHelp = !showMarkdownHelp" class="text-gray-400 hover:text-gray-600" title="Markdown Help">
+                            <i class="fas fa-info-circle"></i>
+                        </button>
+                        <button @click="closeModal()" class="text-gray-400 hover:text-gray-600">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Markdown Help -->
+                <div x-show="showMarkdownHelp" x-transition class="p-4 bg-blue-50 border-b">
+                    <h4 class="font-semibold text-sm mb-2">Markdown & Embed Guide:</h4>
+                    <div class="text-xs space-y-1 text-gray-700">
+                        <p><strong>**bold**</strong> • <em>*italic*</em> • <u>__underline__</u></p>
+                        <p>[link text](url) • # Heading • - List item</p>
+                        <p>Images: ![description](image-url)</p>
+                        <p>YouTube: !video[title](youtube-url)</p>
+                        <p>Vimeo: !video[title](vimeo-url)</p>
+                        <p>Imgur: !video[title](imgur-video-url)</p>
+                        <p class="text-gray-500 italic">Tip: Replace "blank" with your text when using toolbar buttons</p>
+                    </div>
+                </div>
+                
+                <form @submit.prevent="saveHabit()" class="p-6 space-y-4">
+                    <input type="text" x-model="form.title" placeholder="Habit title" required 
+                           class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    
+                    <div>
+                        <div class="flex items-center justify-between mb-1">
+                            <label class="text-sm font-medium">Description</label>
+                            <div class="flex items-center gap-2">
+                                <span class="text-xs text-gray-500">Format:</span>
+                                <div class="flex gap-1">
+                                    <button type="button" @click="insertMarkdown('**', '**')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Bold">
+                                        <i class="fas fa-bold"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('*', '*')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Italic">
+                                        <i class="fas fa-italic"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('__', '__')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Underline">
+                                        <i class="fas fa-underline"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('# ', '')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Header">
+                                        <i class="fas fa-heading"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('[blank]', '()')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Link">
+                                        <i class="fas fa-link"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('![blank]', '()')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Image">
+                                        <i class="fas fa-image"></i>
+                                    </button>
+                                    <button type="button" @click="insertMarkdown('!video[blank]', '()')" class="p-1 text-gray-600 hover:text-gray-800 text-xs" title="Video">
+                                        <i class="fas fa-video"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                        <textarea x-model="form.description" 
+                                  x-ref="mainDescription"
+                                  @focus="lastActiveInput = 'main'"
+                                  placeholder="Description (optional)" 
+                                  rows="3" 
+                                  class="w-full border rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"></textarea>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <div class="flex items-center gap-3">
+                            <input type="checkbox" x-model="form.isDynamic" id="dynamic-time" class="rounded">
+                            <label for="dynamic-time" class="text-sm font-medium">Dynamic time (relative to wake up)</label>
+                        </div>
+                        
+                        <div x-show="!form.isDynamic" class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Time</label>
+                                <input type="time" x-model="form.time" class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Duration (min)</label>
+                                <input type="number" x-model="form.duration" placeholder="30" class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                        </div>
+                        
+                        <div x-show="form.isDynamic" class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Minutes after wake up</label>
+                                <input type="number" x-model="form.offsetMinutes" placeholder="60" class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium mb-1">Duration (min)</label>
+                                <input type="number" x-model="form.duration" placeholder="30" class="w-full border rounded-lg px-3 py-2">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Tags</label>
+                        <div class="flex gap-2 mb-2">
+                            <input type="text" x-model="tagInput" @keydown.enter.prevent="addTag()" 
+                                   placeholder="Add tag" class="flex-1 border rounded-lg px-3 py-2">
+                            <button type="button" @click="addTag()" class="bg-blue-500 text-white px-4 py-2 rounded-lg">+</button>
+                        </div>
+                        <div class="flex flex-wrap gap-2">
+                            <template x-for="(tag, index) in form.tags">
+                                <span class="bg-blue-100 text-blue-800 text-sm px-3 py-1 rounded-full">
+                                    <span x-text="tag"></span>
+                                    <button type="button" @click="form.tags.splice(index, 1)" 
+                                            class="ml-2 text-blue-600 hover:text-blue-800">&times;</button>
+                                </span>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <label class="text-sm font-medium">Sub-tasks</label>
+                            <button type="button" @click="addSubHabit()" class="text-sm text-blue-500 hover:text-blue-700">+ Add</button>
+                        </div>
+                        <div class="space-y-3">
+                            <template x-for="(sub, index) in form.subHabits">
+                                <div class="border rounded-lg p-3 bg-gray-50">
+                                    <div class="flex gap-2 mb-2">
+                                        <input type="text" x-model="sub.title" placeholder="Sub-task title" 
+                                               class="flex-1 border rounded-lg px-3 py-2 text-sm">
+                                        <button type="button" @click="form.subHabits.splice(index, 1)" 
+                                                class="text-red-500 px-3 hover:text-red-700">&times;</button>
+                                    </div>
+                                    <textarea x-model="sub.description" 
+                                              :x-ref="`subDescription${index}`"
+                                              @focus="lastActiveInput = `sub${index}`"
+                                              placeholder="Sub-task description (optional)" 
+                                              rows="2" 
+                                              class="w-full border rounded-lg px-3 py-2 text-sm"></textarea>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <div class="flex gap-3 pt-4">
+                        <button type="button" @click="closeModal()" 
+                                class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition">Cancel</button>
+                        <button type="submit" 
+                                class="flex-1 bg-blue-500 text-white py-3 rounded-lg hover:bg-blue-600 transition" 
+                                x-text="editingHabit ? 'Update' : 'Create'"></button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Day Summary -->
+        <div x-show="showSummary" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div class="bg-white rounded-xl max-w-md w-full p-8 shadow-2xl summary-enter">
+                <h3 class="text-2xl font-bold mb-6 text-center">Day Complete! 🌙</h3>
+                
+                <div class="text-center mb-8">
+                    <div class="text-4xl font-bold text-blue-600 mb-2" x-text="progressPercent + '%'"></div>
+                    <p class="text-gray-600" x-text="`${completedCount} of ${habits.length} habits completed`"></p>
+                </div>
+
+                <div x-show="summaryStats" class="space-y-4 mb-8">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="text-sm text-gray-600">vs Yesterday</div>
+                        <div class="font-semibold text-lg" 
+                             :class="summaryStats.vsYesterday >= 0 ? 'text-green-600' : 'text-red-600'" 
+                             x-text="(summaryStats.vsYesterday >= 0 ? '+' : '') + summaryStats.vsYesterday + '%'"></div>
+                    </div>
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <div class="text-sm text-gray-600">vs This Week Avg</div>
+                        <div class="font-semibold text-lg" 
+                             :class="summaryStats.vsWeek >= 0 ? 'text-green-600' : 'text-red-600'" 
+                             x-text="(summaryStats.vsWeek >= 0 ? '+' : '') + summaryStats.vsWeek + '%'"></div>
+                    </div>
+                </div>
+
+                <button @click="goToSleep()" 
+                        class="w-full bg-indigo-600 text-white py-4 rounded-lg hover:bg-indigo-700 transition text-lg font-semibold">
+                    Go to Sleep
+                </button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

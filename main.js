@@ -992,5 +992,3 @@ document.addEventListener('alpine:init', () => {
         }
     }));
 });
-
-console.log('Habit Tracker loaded');

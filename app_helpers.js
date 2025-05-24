@@ -173,14 +173,7 @@ const TimelineCalculator = {
     
     addDynamicTimeMarkers(slots, segments, wakeMinutes) {
         if (segments.length < 2) return;
-        
-        console.log('Segments:', segments.map(s => ({
-            position: s.position,
-            minutesSinceWake: s.minutesSinceWake,
-            actualTime: TimeUtils.minutesToTime((wakeMinutes + s.minutesSinceWake) % 1440),
-            habit: s.habit?.title || 'none'
-        })));
-        
+
         // Calculate actual time boundaries for the entire timeline
         const startMinutesSinceWake = segments[0].minutesSinceWake;
         const endMinutesSinceWake = segments[segments.length - 1].minutesSinceWake;
@@ -276,17 +269,6 @@ const TimelineCalculator = {
                 
                 const progress = (minutesSinceWake - startSeg.minutesSinceWake) / timeDiff;
                 const position = startSeg.position + progress * pixelDiff;
-                
-                // Debug first few markers of each type
-                if (markersToAdd.filter(m => m.type === markerType).length < 2) {
-                    console.log(`${markerType} marker at ${TimeUtils.minutesToTime(actualClockMinutes)}:`, {
-                        minutesSinceWake,
-                        startSeg: startSeg.minutesSinceWake,
-                        endSeg: endSeg.minutesSinceWake,
-                        progress: progress.toFixed(3),
-                        position: position.toFixed(1)
-                    });
-                }
                 
                 markersToAdd.push({
                     time: actualClockMinutes,

@@ -407,27 +407,6 @@ body {
     height: 2px;
 }
 
-.empty-state {
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    text-align: center;
-    z-index: 50;
-}
-
-.empty-content {
-    background: white;
-    padding: clamp(2rem, 5vw, 3rem);
-    border-radius: 1rem;
-    box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-}
-
-.empty-icon {
-    font-size: clamp(3rem, 10vw, 4rem);
-    margin-bottom: 1rem;
-}
-
 .primary-button {
     background: #3b82f6;
     color: white;

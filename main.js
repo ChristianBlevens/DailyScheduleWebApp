@@ -220,47 +220,50 @@ document.addEventListener('alpine:init', () => {
         },
 
         handleDragEnd() {
-            if (!this.isDragging || !this.draggingHabitId) return;
-            
-            const rawTime = this.calculateTimeFromPosition(this.dragPosition);
-            
-            if (rawTime) {
-                const habit = this.habits.find(h => h.id === this.draggingHabitId);
-                if (habit) {
-                    // Calculate minutes since wake for the raw time
-                    let minutesSinceWake = TimeUtils.getMinutesSinceWake(rawTime, this.wakeUpTime);
-                    
+			if (!this.isDragging || !this.draggingHabitId) return;
+			
+			const rawTime = this.calculateTimeFromPosition(this.dragPosition);
+			
+			if (rawTime) {
+				const habit = this.habits.find(h => h.id === this.draggingHabitId);
+				if (habit) {
+					// Calculate minutes since wake for the raw time
+					let minutesSinceWake = TimeUtils.getMinutesSinceWake(rawTime, this.wakeUpTime);
+					
 					// Clamp time
-                    if (minutesSinceWake < 1) {
-                        minutesSinceWake = 1;
-                    } else if (minutesSinceWake > 1439) {
-                        minutesSinceWake = 1439;
-                    }
-                    
-                    // Calculate the clamped time
-                    const clampedTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
-                    
-                    // Update the habit with the clamped time
-                    if (habit.isDynamic) {
-                        habit.offsetMinutes = minutesSinceWake;
-                        habit.effectiveTime = clampedTime;
-                    } else {
-                        habit.time = clampedTime;
-                        habit.effectiveTime = clampedTime;
-                    }
-                    
-                    this.sortByTime();
-                    this.rebuildTimeline();
-                    this.saveData();
-                }
-            }
-            
-            document.body.classList.remove('dragging');
-            this.isDragging = false;
-            this.dragPosition = 0;
-            this.dragTimeDisplay = '';
-            this.draggingHabitId = null;
-        },
+					if (minutesSinceWake < 1) {
+						minutesSinceWake = 1;
+					} else if (minutesSinceWake > 1439) {
+						minutesSinceWake = 1439;
+					}
+					
+					// Calculate the clamped time
+					const clampedTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
+					
+					// Update the habit with the clamped time
+					if (habit.isDynamic) {
+						habit.offsetMinutes = minutesSinceWake;
+						habit.effectiveTime = clampedTime;
+					} else {
+						habit.time = clampedTime;
+						habit.effectiveTime = clampedTime;
+					}
+					
+					// Immediately update highlighting
+					this.updateHighlighting();
+					
+					this.sortByTime();
+					this.rebuildTimeline();
+					this.saveData();
+				}
+			}
+			
+			document.body.classList.remove('dragging');
+			this.isDragging = false;
+			this.dragPosition = 0;
+			this.dragTimeDisplay = '';
+			this.draggingHabitId = null;
+		},
 
         handleViewportScroll() {
             // Update visible range based on window scroll
@@ -626,73 +629,76 @@ document.addEventListener('alpine:init', () => {
         },
 
         saveHabit() {
-            if (!this.form.title?.trim()) return;
-            
-            try {
-                const habitData = {
-                    id: this.editingHabit?.id || Utils.generateId(),
-                    title: Utils.sanitize(this.form.title),
-                    description: this.form.description || '',
-                    time: this.form.time || '09:00',
-                    duration: parseInt(this.form.duration) || 30,
-                    tags: Array.isArray(this.form.tags) ? this.form.tags.filter(Boolean) : [],
-                    isDynamic: this.form.isDynamic || false,
-                    offsetMinutes: parseInt(this.form.offsetMinutes) || 0,
-                    subHabits: Array.isArray(this.form.subHabits) ? 
-                        this.form.subHabits.filter(s => s?.title?.trim()).map(s => ({
-                            id: s.id || Utils.generateId(),
-                            title: Utils.sanitize(s.title),
-                            description: s.description || '',
-                            completed: false
-                        })) : [],
-                    completed: false,
-                    expanded: false
-                };
-                
-                // Calculate effective time with clamping
-                if (habitData.isDynamic) {
-                    // Clamp offset minutes to 1-1439
-                    habitData.offsetMinutes = Math.max(1, Math.min(1439, habitData.offsetMinutes));
-                    habitData.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, habitData.offsetMinutes);
-                } else {
-                    // For fixed time, calculate minutes since wake using TimeUtils
-                    let minutesSinceWake = TimeUtils.getMinutesSinceWake(habitData.time, this.wakeUpTime);
-                    
-                    // Don't wrap around - just clamp directly
-                    if (minutesSinceWake < 1) {
-                        minutesSinceWake = 1;
-                    } else if (minutesSinceWake > 1439) {
-                        minutesSinceWake = 1439;
-                    }
-                    
-                    // Calculate and set the clamped time
-                    habitData.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
-                    habitData.time = habitData.effectiveTime;
-                }
-                
-                if (this.editingHabit) {
-                    const index = this.habits.findIndex(h => h.id === this.editingHabit.id);
-                    if (index >= 0) {
-                        // Preserve completed status
-                        habitData.completed = this.habits[index].completed;
-                        this.habits[index] = { ...this.habits[index], ...habitData };
-                    }
-                } else {
-                    this.habits.push(habitData);
-                }
-                
-                this.closeModal();
-                this.updateAfterChange();
-            } catch (error) {
-                console.error('Save habit error:', error);
-            }
-        },
+			if (!this.form.title?.trim()) return;
+			
+			try {
+				const habitData = {
+					id: this.editingHabit?.id || Utils.generateId(),
+					title: Utils.sanitize(this.form.title),
+					description: this.form.description || '',
+					time: this.form.time || '09:00',
+					duration: parseInt(this.form.duration) || 30,
+					tags: Array.isArray(this.form.tags) ? this.form.tags.filter(Boolean) : [],
+					isDynamic: this.form.isDynamic || false,
+					offsetMinutes: parseInt(this.form.offsetMinutes) || 0,
+					subHabits: Array.isArray(this.form.subHabits) ? 
+						this.form.subHabits.filter(s => s?.title?.trim()).map(s => ({
+							id: s.id || Utils.generateId(),
+							title: Utils.sanitize(s.title),
+							description: s.description || '',
+							completed: false
+						})) : [],
+					completed: false,
+					expanded: false
+				};
+				
+				// Calculate effective time with clamping
+				if (habitData.isDynamic) {
+					// Clamp offset minutes to 1-1439
+					habitData.offsetMinutes = Math.max(1, Math.min(1439, habitData.offsetMinutes));
+					habitData.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, habitData.offsetMinutes);
+				} else {
+					// For fixed time, calculate minutes since wake using TimeUtils
+					let minutesSinceWake = TimeUtils.getMinutesSinceWake(habitData.time, this.wakeUpTime);
+					
+					// Don't wrap around - just clamp directly
+					if (minutesSinceWake < 1) {
+						minutesSinceWake = 1;
+					} else if (minutesSinceWake > 1439) {
+						minutesSinceWake = 1439;
+					}
+					
+					// Calculate and set the clamped time
+					habitData.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
+					habitData.time = habitData.effectiveTime;
+				}
+				
+				if (this.editingHabit) {
+					const index = this.habits.findIndex(h => h.id === this.editingHabit.id);
+					if (index >= 0) {
+						// Preserve completed status
+						habitData.completed = this.habits[index].completed;
+						this.habits[index] = { ...this.habits[index], ...habitData };
+					}
+				} else {
+					this.habits.push(habitData);
+				}
+				
+				this.closeModal();
+				
+				// Immediately update highlighting before other updates
+				this.updateHighlighting();
+				this.updateAfterChange();
+			} catch (error) {
+				console.error('Save habit error:', error);
+			}
+		},
 
         updateAfterChange() {
             this.sortByTime();
+			this.updateHighlighting();
             this.rebuildTimeline();
             this.calculateAnalytics();
-            this.updateHighlighting();
             this.saveData().catch(error => {
                 console.error('Error saving data:', error);
             });

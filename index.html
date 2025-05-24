@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Daily Habit Tracker</title>
-	
-	<link rel="icon" type="image/svg" href="./favicon.svg"/>
-	
-	<!-- Prevent favicon.ico request -->
+    
+    <link rel="icon" type="image/svg" href="./favicon.svg"/>
     <link rel="icon" href="data:,">
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -137,11 +135,11 @@
                     
                     <div class="timeline-content">
                         <template x-for="(slot, index) in visibleTimeSlots" :key="`slot_${index}_${slot.time}`">
-							<div x-show="slot.type === 'hour' || slot.type === 'wake'" 
-								 class="hour-line" 
-								 :class="{ 'major': slot.type === 'wake' }"
-								 :style="`top: ${slot.position}px`"></div>
-						</template>
+                            <div x-show="slot.type === 'hour' || slot.type === 'wake'" 
+                                 class="hour-line" 
+                                 :class="{ 'major': slot.type === 'wake' }"
+                                 :style="`top: ${slot.position}px`"></div>
+                        </template>
                         
                         <div class="current-time-line current-time-indicator" 
                              :style="`top: ${currentTimePosition}px`"></div>
@@ -151,30 +149,30 @@
                              :style="`top: ${dragPosition}px`"></div>
                         
                         <div class="timeline-ruler" :style="`height: ${timelineHeight}px`">
-							<template x-for="(slot, index) in timeSlots" :key="`tick_${slot.type}_${slot.position}`">
-								<div class="ruler-tick"
-									 :class="{
-										 'major': slot.type === 'hour' || slot.type === 'wake',
-										 'medium': slot.type === 'medium',
-										 'minor': slot.type === 'minor',
-										 'micro': slot.type === 'micro',
-										 'habit': slot.type === 'habit'
-									 }"
-									 :style="`top: ${slot.position}px`"></div>
-							</template>
+                            <template x-for="(slot, index) in timeSlots" :key="`tick_${slot.type}_${slot.position}`">
+                                <div class="ruler-tick"
+                                     :class="{
+                                         'major': slot.type === 'hour' || slot.type === 'wake',
+                                         'medium': slot.type === 'medium',
+                                         'minor': slot.type === 'minor',
+                                         'micro': slot.type === 'micro',
+                                         'habit': slot.type === 'habit'
+                                     }"
+                                     :style="`top: ${slot.position}px`"></div>
+                            </template>
 
-							<template x-for="(slot, index) in timeSlots.filter(s => s.displayLabel)" :key="`label_${slot.position}`">
-								<div class="ruler-label" 
-									 :class="{ 'wake': slot.type === 'wake' }"
-									 :style="`top: ${slot.position}px`" 
-									 x-text="slot.label">
-								</div>
-							</template>
-							
-							<div x-show="isDragging" 
-								 class="drag-ruler-marker" 
-								 :style="`top: ${dragPosition}px`"></div>
-						</div>
+                            <template x-for="(slot, index) in timeSlots.filter(s => s.displayLabel)" :key="`label_${slot.position}`">
+                                <div class="ruler-label" 
+                                     :class="{ 'wake': slot.type === 'wake' }"
+                                     :style="`top: ${slot.position}px`" 
+                                     x-text="slot.label">
+                                </div>
+                            </template>
+                            
+                            <div x-show="isDragging" 
+                                 class="drag-ruler-marker" 
+                                 :style="`top: ${dragPosition}px`"></div>
+                        </div>
                         
                         <div class="habits-container" id="habits-container">
                             <template x-for="habit in visibleHabits" :key="habit.id">

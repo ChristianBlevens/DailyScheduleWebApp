@@ -64,30 +64,30 @@ body {
 }
 
 .ruler-tick.major {
-    width: 40%;
+    width: min(40%, 1.5rem);
     height: 2px;
 }
 
 .ruler-tick.medium {
-    width: 30%;
+    width: min(30%, 1.125rem);
     height: 1.5px;
     background: #475569;
 }
 
 .ruler-tick.minor {
-    width: 20%;
+    width: min(20%, 0.75rem);
     height: 1px;
     background: #64748b;
 }
 
 .ruler-tick.micro {
-    width: 10%;
+    width: min(10%, 0.375rem);
     height: 1px;
     background: #cbd5e1;
 }
 
 .ruler-tick.habit {
-    width: 50%;
+    width: min(50%, 1.875rem);
     height: 2px;
     background: #ef4444;
     z-index: 15;
@@ -96,15 +96,16 @@ body {
 .ruler-label {
     position: absolute;
     right: 0;
-    font-size: clamp(0.625rem, 2vw, 0.75rem);
+    font-size: clamp(0.5rem, 1.5vw, 0.75rem);
     font-family: 'Inter', monospace;
     font-weight: 600;
     color: #1e293b;
     transform: translateY(-50%);
     white-space: nowrap;
-    padding-right: 0.25rem;
+    padding-right: clamp(0.125rem, 0.5vw, 0.25rem);
+    padding-left: clamp(0.25rem, 1vw, 0.5rem);
     text-align: right;
-    width: calc(var(--ruler-width) - 0.5rem);
+    width: 100%;
     overflow: hidden;
     text-overflow: ellipsis;
 }
@@ -113,13 +114,13 @@ body {
     background: #f59e0b;
     color: white;
     font-weight: 700;
-    font-size: clamp(0.75rem, 2.5vw, 0.875rem);
-    padding: 0.125rem 0.375rem;
+    font-size: clamp(0.625rem, 2vw, 0.875rem);
+    padding: clamp(0.0625rem, 0.5vw, 0.125rem) clamp(0.1875rem, 1vw, 0.375rem);
     border-radius: 0.25rem;
     z-index: 20;
-    right: 0.125rem;
+    right: clamp(0.0625rem, 0.5vw, 0.125rem);
     width: auto;
-    max-width: calc(var(--ruler-width) - 0.25rem);
+    max-width: calc(100% - clamp(0.125rem, 1vw, 0.25rem));
 }
 
 .drag-position-indicator {
@@ -146,7 +147,7 @@ body {
 .drag-ruler-marker {
     position: absolute;
     left: -5%;
-    width: 60%;
+    width: min(60%, 2.25rem);
     height: 3px;
     background: #3b82f6;
     transform: translateY(-50%);
@@ -262,15 +263,15 @@ body {
 
 .time-display {
     font-family: 'Inter', monospace;
-    font-size: clamp(0.75rem, 2.5vw, 0.875rem);
+    font-size: clamp(0.688rem, 2.25vw, 0.875rem);
     font-weight: 500;
     color: #4b5563;
 }
 
 .duration-badge,
 .dynamic-badge {
-    font-size: clamp(0.625rem, 2vw, 0.75rem);
-    padding: 0.125rem 0.375rem;
+    font-size: clamp(0.563rem, 1.75vw, 0.75rem);
+    padding: clamp(0.0625rem, 0.5vw, 0.125rem) clamp(0.25rem, 1vw, 0.375rem);
     border-radius: 0.25rem;
 }
 
@@ -292,8 +293,8 @@ body {
 }
 
 .action-button {
-    width: var(--touch-target);
-    height: var(--touch-target);
+    width: clamp(2.25rem, 8vw, var(--touch-target));
+    height: clamp(2.25rem, 8vw, var(--touch-target));
     display: flex;
     align-items: center;
     justify-content: center;
@@ -303,6 +304,7 @@ body {
     background: none;
     border: none;
     padding: 0;
+    font-size: clamp(0.875rem, 2.5vw, 1.125rem);
 }
 
 .action-button:hover {
@@ -325,7 +327,7 @@ body {
 
 .tile-description {
     color: #4b5563;
-    font-size: clamp(0.875rem, 2.5vw, 0.938rem);
+    font-size: clamp(0.813rem, 2.25vw, 0.938rem);
     line-height: 1.5;
 }
 
@@ -334,7 +336,7 @@ body {
 }
 
 .sub-habits-title {
-    font-size: clamp(0.875rem, 2.5vw, 0.938rem);
+    font-size: clamp(0.813rem, 2.25vw, 0.938rem);
     font-weight: 600;
     color: #374151;
     margin-bottom: 0.5rem;
@@ -373,7 +375,7 @@ body {
 }
 
 .sub-habit-description {
-    font-size: clamp(0.75rem, 2vw, 0.813rem);
+    font-size: clamp(0.688rem, 1.75vw, 0.813rem);
     color: #6b7280;
     margin-top: 0.375rem;
     padding-left: calc(clamp(1rem, 3vw, 1.25rem) + 0.5rem);
@@ -760,35 +762,6 @@ body.dragging {
 
 body.dragging * {
     cursor: grabbing !important;
-}
-
-/* Mobile-specific adjustments */
-@media (max-width: 640px) {
-    .ruler-label {
-        font-size: 0.625rem;
-        padding-right: 0.125rem;
-    }
-    
-    .ruler-label.wake {
-        font-size: 0.688rem;
-        padding: 0.0625rem 0.25rem;
-    }
-}
-
-/* Prevent overflow on very small screens */
-@media (max-width: 375px) {
-    :root {
-        --ruler-width: clamp(2.5rem, 12vw, 7.5rem);
-    }
-    
-    .ruler-label {
-        font-size: 0.563rem;
-    }
-    
-    .ruler-label.wake {
-        font-size: 0.625rem;
-        padding: 0.0625rem 0.1875rem;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {

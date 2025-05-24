@@ -1162,7 +1162,7 @@ document.addEventListener('alpine:init', () => {
                 }
             } else if (before === '# ' && after === '') {
                 cursorOffset = before.length;
-            } else if (before.includes('[blank]')) {
+            } else if (before.includes('[title]')) {
                 cursorOffset = before.length + 1;
             }
             

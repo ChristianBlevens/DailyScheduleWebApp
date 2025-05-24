@@ -1,72 +1,61 @@
-const Timeline = {
-    generate24HourTimeline(habits, wakeUpTime, containerHeight = 800) {
-        const wakeMinutes = this.timeToMinutes(wakeUpTime || '07:00');
-        const headerSpace = 40;
-        const footerSpace = 40;
-        const availableHeight = containerHeight - headerSpace - footerSpace;
-        
-        // Sort habits by time relative to wake time
-        const sortedHabits = [...habits].sort((a, b) => {
-            const aMinutes = this.timeToMinutesSinceWake(a.effectiveTime, wakeMinutes);
-            const bMinutes = this.timeToMinutesSinceWake(b.effectiveTime, wakeMinutes);
-            return aMinutes - bMinutes;
-        });
-        
-        // Step 1: Position tiles evenly
-        const tileHeight = 70;
-        const tileGap = 20;
-        const positionedHabits = this.positionTilesEvenly(sortedHabits, headerSpace, tileHeight, tileGap);
-        
-        // Step 2: Generate dynamic time slots based on tile positions
-        const timeSlots = this.generateDynamicTimeSlots(positionedHabits, wakeMinutes, headerSpace, availableHeight);
-        
-        return { timeSlots, positionedHabits };
-    },
-    
-    // Core time conversion functions
+const TimeUtils = {
     timeToMinutes(timeStr) {
         if (!timeStr || typeof timeStr !== 'string') return 0;
-        const [hours, minutes] = timeStr.split(':');
-        return parseInt(hours || 0) * 60 + parseInt(minutes || 0);
+        const [hours, minutes] = timeStr.split(':').map(n => parseInt(n) || 0);
+        return hours * 60 + minutes;
     },
     
     minutesToTime(minutes) {
         if (typeof minutes !== 'number' || isNaN(minutes)) return '00:00';
-        const normalizedMinutes = ((minutes % 1440) + 1440) % 1440; // Normalize to 0-1439
+        const normalizedMinutes = ((minutes % 1440) + 1440) % 1440;
         const hours = Math.floor(normalizedMinutes / 60);
         const mins = normalizedMinutes % 60;
         return `${hours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}`;
     },
     
-    // Convert time to minutes since wake time (handles next day)
-    timeToMinutesSinceWake(timeStr, wakeMinutes) {
-        const timeMinutes = this.timeToMinutes(timeStr);
-        let minutesSinceWake = timeMinutes - wakeMinutes;
-        
-        // If the time is before wake time, it's the next day
-        if (minutesSinceWake < 0) {
-            minutesSinceWake += 1440; // Add 24 hours
-        }
-        
-        return minutesSinceWake;
+    getCurrentTime() {
+        const now = new Date();
+        return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
     },
     
-    // Convert minutes since wake back to actual time
-    minutesSinceWakeToTime(minutesSinceWake, wakeMinutes) {
-        const totalMinutes = (wakeMinutes + minutesSinceWake) % 1440;
-        return this.minutesToTime(totalMinutes);
+    getCurrentMinutes() {
+        const now = new Date();
+        return now.getHours() * 60 + now.getMinutes();
+    },
+    
+    getDateKey(date = new Date()) {
+        return date.toISOString().split('T')[0];
+    },
+    
+    addMinutesToTime(timeStr, minutesToAdd) {
+        const baseMinutes = this.timeToMinutes(timeStr);
+        return this.minutesToTime(baseMinutes + minutesToAdd);
+    },
+    
+    getMinutesSinceWake(timeStr, wakeTimeStr) {
+        const timeMinutes = this.timeToMinutes(timeStr);
+        const wakeMinutes = this.timeToMinutes(wakeTimeStr);
+        let diff = timeMinutes - wakeMinutes;
+        if (diff < 0) diff += 1440;
+        return diff;
+    },
+    
+    getMinutesBetween(time1, time2) {
+        const minutes1 = this.timeToMinutes(time1);
+        const minutes2 = this.timeToMinutes(time2);
+        let diff = minutes2 - minutes1;
+        if (diff < 0) diff += 1440;
+        return diff;
     },
     
     formatTime(timeStr, showMinutes = true) {
         if (!timeStr) return '';
         try {
-            const [hours, minutes] = timeStr.split(':');
-            const h = parseInt(hours);
-            const m = parseInt(minutes);
+            const [hours, minutes] = timeStr.split(':').map(n => parseInt(n));
             
             if (showMinutes) {
                 const date = new Date();
-                date.setHours(h, m);
+                date.setHours(hours, minutes);
                 return date.toLocaleTimeString('en-US', {
                     hour: 'numeric',
                     minute: '2-digit',
@@ -74,264 +63,384 @@ const Timeline = {
                 });
             }
             
-            // For ruler times (showMinutes = false), only show the hour
-            const isPM = h >= 12;
-            const displayHour = h === 0 ? 12 : h > 12 ? h - 12 : h;
+            const isPM = hours >= 12;
+            const displayHour = hours === 0 ? 12 : hours > 12 ? hours - 12 : hours;
             return `${displayHour} ${isPM ? 'PM' : 'AM'}`;
         } catch (error) {
             return timeStr;
         }
-    },
-    
-    positionTilesEvenly(habits, startY, tileHeight, gap) {
-        return habits.map((habit, index) => ({
-            ...habit,
-            position: startY + (index * (tileHeight + gap)) + (tileHeight / 2)
-        }));
-    },
-    
-    generateDynamicTimeSlots(positionedHabits, wakeMinutes, startY, maxHeight) {
-        const timeSlots = [];
-        const endY = startY + maxHeight;
-        
-        // Always start with wake time
-        timeSlots.push({
-            time: wakeMinutes,
-            position: startY,
-            label: this.formatTime(this.minutesToTime(wakeMinutes), true),
-            type: 'wake',
-            displayLabel: true
-        });
-        
-        // Create key points including habit times
-        const keyPoints = [{
-            minutes: 0, // 0 minutes since wake
-            position: startY,
-            actualTime: wakeMinutes
-        }];
-        
-        // Add habit positions as key points
-        if (positionedHabits && positionedHabits.length > 0) {
-            positionedHabits.forEach(habit => {
-                const minutesSinceWake = this.timeToMinutesSinceWake(habit.effectiveTime, wakeMinutes);
-                const actualMinutes = this.timeToMinutes(habit.effectiveTime);
-                
-                keyPoints.push({
-                    minutes: minutesSinceWake,
-                    position: habit.position,
-                    actualTime: actualMinutes
-                });
-                
-                // Add the exact habit time marker
-                timeSlots.push({
-                    time: actualMinutes,
-                    position: habit.position,
-                    label: '',
-                    type: 'habit',
-                    displayLabel: false
-                });
-            });
-        }
-        
-        // Calculate the end position based on the last habit or minimum timeline length
-        let finalPosition = endY;
-        if (positionedHabits && positionedHabits.length > 0) {
-            const lastHabitPosition = positionedHabits[positionedHabits.length - 1].position;
-            // Ensure at least 100px after the last habit
-            finalPosition = Math.max(lastHabitPosition + 100, endY);
-        }
-        
-        // Add end point (24 hours after wake)
-        keyPoints.push({
-            minutes: 1440,
-            position: finalPosition,
-            actualTime: wakeMinutes // Back to wake time after 24 hours
-        });
-        
-        // Sort keyPoints by minutes to ensure proper order
-        keyPoints.sort((a, b) => a.minutes - b.minutes);
-        
-        // Generate hour markers with proper spacing
-        const hourMarkers = [];
-        
-        // Calculate hours to show based on timeline span
-        for (let hoursSinceWake = 0; hoursSinceWake <= 24; hoursSinceWake++) {
-            const minutesSinceWake = hoursSinceWake * 60;
-            
-            // Find the two keypoints this hour falls between
-            let startPoint = keyPoints[0];
-            let endPoint = keyPoints[keyPoints.length - 1];
-            
-            for (let i = 0; i < keyPoints.length - 1; i++) {
-                if (minutesSinceWake >= keyPoints[i].minutes && minutesSinceWake <= keyPoints[i + 1].minutes) {
-                    startPoint = keyPoints[i];
-                    endPoint = keyPoints[i + 1];
-                    break;
-                }
-            }
-            
-            // Interpolate position
-            const progress = (minutesSinceWake - startPoint.minutes) / (endPoint.minutes - startPoint.minutes);
-            const position = startPoint.position + (endPoint.position - startPoint.position) * progress;
-            
-            // Skip if position is outside the visible area
-            if (position < startY || position > finalPosition) continue;
-            
-            const actualMinutes = (wakeMinutes + minutesSinceWake) % 1440;
-            
-            hourMarkers.push({
-                time: actualMinutes,
-                position: position,
-                label: this.formatTime(this.minutesToTime(actualMinutes), false),
-                type: 'hour',
-                displayLabel: true,
-                minutesSinceWake: minutesSinceWake
-            });
-        }
-        
-        // Filter hour labels to prevent overlap
-        const minLabelSpacing = 30;
-        const filteredHourLabels = [];
-        
-        hourMarkers.forEach(marker => {
-            // Don't add hour marker if it's too close to wake time
-            if (Math.abs(marker.position - startY) < 15 && marker.minutesSinceWake !== 0) return;
-            
-            const tooClose = filteredHourLabels.some(existing => 
-                Math.abs(existing.position - marker.position) < minLabelSpacing
-            );
-            
-            if (!tooClose) {
-                filteredHourLabels.push(marker);
-                timeSlots.push(marker);
-            }
-        });
-        
-        // Add minor tick marks between hours
-        for (let i = 0; i < keyPoints.length - 1; i++) {
-            const start = keyPoints[i];
-            const end = keyPoints[i + 1];
-            
-            const timeDiff = end.minutes - start.minutes;
-            const posDiff = end.position - start.position;
-            
-            // Skip if segment is too small
-            if (posDiff < 20) continue;
-            
-            // Determine tick interval based on density
-            const pixelsPerMinute = posDiff / timeDiff;
-            let interval;
-            
-            if (pixelsPerMinute < 0.5) {
-                interval = 30; // Very dense: only 30 min marks
-            } else if (pixelsPerMinute < 1) {
-                interval = 15; // Dense: 15 min marks
-            } else if (pixelsPerMinute < 2) {
-                interval = 5; // Medium: 5 min marks
-            } else {
-                interval = 1; // Sparse: 1 min marks
-            }
-            
-            // Add tick marks
-            for (let m = start.minutes + interval; m < end.minutes; m += interval) {
-                if (m % 60 === 0) continue; // Skip hours (already added)
-                
-                const actualMinutes = (wakeMinutes + m) % 1440;
-                const progress = (m - start.minutes) / (end.minutes - start.minutes);
-                const position = start.position + (end.position - start.position) * progress;
-                
-                let type = 'micro';
-                if (m % 30 === 0) type = 'half';
-                else if (m % 15 === 0) type = 'quarter';
-                else if (m % 5 === 0) type = 'minor';
-                
-                timeSlots.push({
-                    time: actualMinutes,
-                    position: position,
-                    label: '',
-                    type: type,
-                    displayLabel: false
-                });
-            }
-        }
-        
-        // Sort all time slots by position
-        timeSlots.sort((a, b) => a.position - b.position);
-        
-        return timeSlots;
-    },
-    
-    // Calculate position from minutes since wake
-    getPositionFromMinutesSinceWake(minutesSinceWake, keyPoints) {
-        if (!keyPoints || keyPoints.length < 2) return 40;
-        
-        // Find the two points to interpolate between
-        for (let i = 0; i < keyPoints.length - 1; i++) {
-            const current = keyPoints[i];
-            const next = keyPoints[i + 1];
-            
-            if (minutesSinceWake >= current.minutesSinceWake && 
-                minutesSinceWake <= next.minutesSinceWake) {
-                const progress = (minutesSinceWake - current.minutesSinceWake) / 
-                               (next.minutesSinceWake - current.minutesSinceWake);
-                return current.position + (next.position - current.position) * progress;
-            }
-        }
-        
-        // If past 24 hours, return end position
-        if (minutesSinceWake > 1440) {
-            return keyPoints[keyPoints.length - 1].position;
-        }
-        
-        return keyPoints[0].position;
     }
 };
 
-// Utilities
+const TimelineCalculator = {
+    PIXELS_PER_TILE: 120,
+    MIN_TILE_SPACING: 90,
+    TIMELINE_PADDING: 40,
+    MIN_MARKER_SPACING: 20,
+    
+    generateTimeline(habits, wakeUpTime) {
+        const slots = [];
+        const wakeMinutes = TimeUtils.timeToMinutes(wakeUpTime);
+        
+        const sortedHabits = [...habits].sort((a, b) => {
+            const aMinutes = TimeUtils.getMinutesSinceWake(a.effectiveTime, wakeUpTime);
+            const bMinutes = TimeUtils.getMinutesSinceWake(b.effectiveTime, wakeUpTime);
+            return aMinutes - bMinutes;
+        });
+        
+        // Create segments with equal spacing
+        const segments = this.createEqualSpacedSegments(sortedHabits, wakeUpTime);
+        
+        // Add wake time marker
+        slots.push({
+            time: wakeMinutes,
+            position: this.TIMELINE_PADDING,
+            label: TimeUtils.formatTime(wakeUpTime, true),
+            type: 'wake',
+            displayLabel: true,
+            minutesSinceWake: 0
+        });
+        
+        // Add habit markers
+        segments.forEach(segment => {
+            if (segment.habit) {
+                slots.push({
+                    time: TimeUtils.timeToMinutes(segment.habit.effectiveTime),
+                    position: segment.position,
+                    label: '',
+                    type: 'habit',
+                    displayLabel: false,
+                    minutesSinceWake: segment.minutesSinceWake
+                });
+            }
+        });
+        
+        // Add dynamic time markers
+        this.addDynamicTimeMarkers(slots, segments, wakeMinutes);
+        
+        slots.sort((a, b) => a.position - b.position);
+        
+        const maxPosition = segments.length > 0 ? 
+            segments[segments.length - 1].position + this.PIXELS_PER_TILE : 
+            this.TIMELINE_PADDING + 400;
+        
+        return {
+            slots,
+            height: maxPosition + this.TIMELINE_PADDING * 2,
+            segments // Store for position calculations
+        };
+    },
+    
+    createEqualSpacedSegments(habits, wakeUpTime) {
+        const segments = [];
+        const wakeMinutes = TimeUtils.timeToMinutes(wakeUpTime);
+        
+        // Start with wake time
+        segments.push({
+            position: this.TIMELINE_PADDING,
+            minutesSinceWake: 0,
+            actualMinutes: wakeMinutes,
+            habit: null
+        });
+        
+        // Add habits with equal spacing
+        let currentPosition = this.TIMELINE_PADDING;
+        habits.forEach((habit, index) => {
+            currentPosition += this.PIXELS_PER_TILE;
+            const minutesSinceWake = TimeUtils.getMinutesSinceWake(habit.effectiveTime, wakeUpTime);
+            
+            segments.push({
+                position: currentPosition,
+                minutesSinceWake,
+                actualMinutes: TimeUtils.timeToMinutes(habit.effectiveTime),
+                habit
+            });
+        });
+        
+        // Add end of day
+        if (habits.length > 0) {
+            currentPosition += this.PIXELS_PER_TILE;
+            segments.push({
+                position: currentPosition,
+                minutesSinceWake: 1440,
+                actualMinutes: wakeMinutes,
+                habit: null
+            });
+        }
+        
+        return segments;
+    },
+    
+    addDynamicTimeMarkers(slots, segments, wakeMinutes) {
+        if (segments.length < 2) return;
+        
+        console.log('Segments:', segments.map(s => ({
+            position: s.position,
+            minutesSinceWake: s.minutesSinceWake,
+            actualTime: TimeUtils.minutesToTime((wakeMinutes + s.minutesSinceWake) % 1440),
+            habit: s.habit?.title || 'none'
+        })));
+        
+        // Calculate actual time boundaries for the entire timeline
+        const startMinutesSinceWake = segments[0].minutesSinceWake;
+        const endMinutesSinceWake = segments[segments.length - 1].minutesSinceWake;
+        
+        // Find the first actual clock hour after wake time
+        const wakeHour = Math.floor(wakeMinutes / 60);
+        const firstClockHour = (wakeHour + 1) * 60; // Next full hour in minutes since midnight
+        
+        // Add hour markers at actual clock hours
+        let currentClockMinutes = firstClockHour;
+        let hourCount = 0;
+        const maxHours = 24; // Safety limit
+        
+        while (hourCount < maxHours) {
+            let minutesSinceWake = currentClockMinutes - wakeMinutes;
+            
+            // Handle day wraparound
+            if (minutesSinceWake < 0) {
+                minutesSinceWake += 1440;
+            }
+            
+            if (minutesSinceWake > endMinutesSinceWake) break;
+            
+            const position = this.interpolatePosition(minutesSinceWake, segments);
+            if (position !== null) {
+                slots.push({
+                    time: currentClockMinutes % 1440,
+                    position,
+                    label: TimeUtils.formatTime(TimeUtils.minutesToTime(currentClockMinutes % 1440), false),
+                    type: 'hour',
+                    displayLabel: true,
+                    minutesSinceWake,
+                    priority: 1 // Highest priority for hour labels
+                });
+            }
+            
+            currentClockMinutes += 60; // Next hour
+            hourCount++;
+        }
+        
+        // Process each segment for sub-hour markers
+        for (let i = 0; i < segments.length - 1; i++) {
+            const startSeg = segments[i];
+            const endSeg = segments[i + 1];
+            
+            const timeDiff = endSeg.minutesSinceWake - startSeg.minutesSinceWake;
+            const pixelDiff = endSeg.position - startSeg.position;
+            const pixelsPerMinute = pixelDiff / timeDiff;
+            
+            // Determine sub-hour marker density based on available space
+            let includeHalfHours = pixelsPerMinute > 0.2;      // 30-min markers
+            let includeQuarterHours = pixelsPerMinute > 0.4;   // 15-min markers  
+            let include5Minutes = pixelsPerMinute > 0.8;       // 5-min markers
+            let includeMinutes = pixelsPerMinute > 4.0;        // 1-min markers
+            
+            // Find all the sub-hour markers we should add for this segment
+            const markersToAdd = [];
+            
+            // Calculate the actual clock time range for this segment
+            const segStartClock = wakeMinutes + startSeg.minutesSinceWake;
+            const segEndClock = wakeMinutes + endSeg.minutesSinceWake;
+            
+            // Find the first relevant marker time in this segment
+            // We need to start from just after the segment start to avoid boundary issues
+            let firstMarkerTime = Math.floor(segStartClock) + 1;
+            
+            // Iterate through each minute in the segment
+            for (let clockTime = firstMarkerTime; clockTime < segEndClock; clockTime++) {
+                const actualClockMinutes = clockTime % 1440;
+                const clockMod = actualClockMinutes % 60;
+                const minutesSinceWake = clockTime - wakeMinutes;
+                
+                // Skip if outside segment bounds
+                if (minutesSinceWake <= startSeg.minutesSinceWake || 
+                    minutesSinceWake >= endSeg.minutesSinceWake) continue;
+                
+                let markerType = null;
+                
+                // Determine marker type based on clock time
+                if (clockMod === 0) {
+                    continue; // Skip hours - already added
+                } else if (clockMod === 30 && includeHalfHours) {
+                    markerType = 'medium';
+                } else if ((clockMod === 15 || clockMod === 45) && includeQuarterHours) {
+                    markerType = 'minor';
+                } else if (clockMod % 5 === 0 && include5Minutes) {
+                    markerType = 'micro';
+                } else if (includeMinutes) {
+                    markerType = 'micro';
+                } else {
+                    continue; // Skip this minute
+                }
+                
+                const progress = (minutesSinceWake - startSeg.minutesSinceWake) / timeDiff;
+                const position = startSeg.position + progress * pixelDiff;
+                
+                // Debug first few markers of each type
+                if (markersToAdd.filter(m => m.type === markerType).length < 2) {
+                    console.log(`${markerType} marker at ${TimeUtils.minutesToTime(actualClockMinutes)}:`, {
+                        minutesSinceWake,
+                        startSeg: startSeg.minutesSinceWake,
+                        endSeg: endSeg.minutesSinceWake,
+                        progress: progress.toFixed(3),
+                        position: position.toFixed(1)
+                    });
+                }
+                
+                markersToAdd.push({
+                    time: actualClockMinutes,
+                    position,
+                    label: '',
+                    type: markerType,
+                    displayLabel: false,
+                    minutesSinceWake
+                });
+            }
+            
+            slots.push(...markersToAdd);
+        }
+        
+        // Remove overlapping hour labels based on minimum spacing
+        this.resolveOverlappingLabels(slots);
+    },
+    
+    interpolatePosition(minutesSinceWake, segments) {
+        for (let i = 0; i < segments.length - 1; i++) {
+            const start = segments[i];
+            const end = segments[i + 1];
+            
+            if (minutesSinceWake >= start.minutesSinceWake && 
+                minutesSinceWake <= end.minutesSinceWake) {
+                const progress = (minutesSinceWake - start.minutesSinceWake) / 
+                               (end.minutesSinceWake - start.minutesSinceWake);
+                return start.position + (end.position - start.position) * progress;
+            }
+        }
+        return null;
+    },
+    
+    resolveOverlappingLabels(slots) {
+        // Sort slots by position and priority
+        const labeledSlots = slots.filter(s => s.displayLabel && s.type !== 'wake');
+        labeledSlots.sort((a, b) => {
+            if (Math.abs(a.position - b.position) < this.MIN_MARKER_SPACING) {
+                return (b.priority || 0) - (a.priority || 0);
+            }
+            return a.position - b.position;
+        });
+        
+        // Mark overlapping labels for hiding
+        const visibleLabels = [];
+        for (const slot of labeledSlots) {
+            const tooClose = visibleLabels.some(visible => 
+                Math.abs(visible.position - slot.position) < this.MIN_MARKER_SPACING * 1.5
+            );
+            
+            if (!tooClose) {
+                visibleLabels.push(slot);
+            } else {
+                slot.displayLabel = false;
+            }
+        }
+    },
+    
+    timeToPosition(timeStr, slots, wakeUpTime) {
+        const targetMinutesSinceWake = TimeUtils.getMinutesSinceWake(timeStr, wakeUpTime);
+        
+        // Find segments from slots
+        const segments = this.reconstructSegments(slots);
+        
+        for (let i = 0; i < segments.length - 1; i++) {
+            const start = segments[i];
+            const end = segments[i + 1];
+            
+            if (targetMinutesSinceWake >= start.minutesSinceWake && 
+                targetMinutesSinceWake <= end.minutesSinceWake) {
+                const progress = (targetMinutesSinceWake - start.minutesSinceWake) / 
+                               (end.minutesSinceWake - start.minutesSinceWake);
+                return start.position + (end.position - start.position) * progress;
+            }
+        }
+        
+        return this.TIMELINE_PADDING;
+    },
+    
+    positionToTime(position, slots, wakeUpTime) {
+        const wakeMinutes = TimeUtils.timeToMinutes(wakeUpTime);
+        
+        // Find segments from slots
+        const segments = this.reconstructSegments(slots);
+        
+        for (let i = 0; i < segments.length - 1; i++) {
+            const start = segments[i];
+            const end = segments[i + 1];
+            
+            if (position >= start.position && position <= end.position) {
+                const progress = (position - start.position) / 
+                               (end.position - start.position);
+                
+                const targetMinutesSinceWake = start.minutesSinceWake + 
+                    (end.minutesSinceWake - start.minutesSinceWake) * progress;
+                
+                const targetMinutes = (wakeMinutes + targetMinutesSinceWake) % 1440;
+                return {
+                    timeStr: TimeUtils.minutesToTime(targetMinutes),
+                    minutesSinceWake: targetMinutesSinceWake
+                };
+            }
+        }
+        
+        return {
+            timeStr: wakeUpTime,
+            minutesSinceWake: 0
+        };
+    },
+    
+    reconstructSegments(slots) {
+        // Reconstruct segments from slots for calculations
+        const segments = [];
+        
+        // Add wake time
+        const wakeSlot = slots.find(s => s.type === 'wake');
+        if (wakeSlot) {
+            segments.push({
+                position: wakeSlot.position,
+                minutesSinceWake: 0
+            });
+        }
+        
+        // Add all habit positions
+        const habitSlots = slots.filter(s => s.type === 'habit')
+            .sort((a, b) => a.minutesSinceWake - b.minutesSinceWake);
+        
+        habitSlots.forEach(slot => {
+            segments.push({
+                position: slot.position,
+                minutesSinceWake: slot.minutesSinceWake
+            });
+        });
+        
+        // Add end of day if there are habits
+        if (habitSlots.length > 0) {
+            const lastHabit = habitSlots[habitSlots.length - 1];
+            segments.push({
+                position: lastHabit.position + this.PIXELS_PER_TILE,
+                minutesSinceWake: 1440
+            });
+        }
+        
+        return segments;
+    }
+};
+
 const Utils = {
     generateId() {
         return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     },
 
-    getCurrentTime() {
-        const now = new Date();
-        return `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-    },
-
-    getCurrentMinutes() {
-        const now = new Date();
-        return now.getHours() * 60 + now.getMinutes();
-    },
-
-    // Delegate to Timeline functions for consistency
-    timeToMinutes(timeStr) {
-        return Timeline.timeToMinutes(timeStr);
-    },
-
-    minutesToTime(minutes) {
-        return Timeline.minutesToTime(minutes);
-    },
-
-    formatTime(timeStr, showMinutes) {
-        return Timeline.formatTime(timeStr, showMinutes);
-    },
-    
-    timeToMinutesSinceWake(timeStr, wakeMinutes) {
-        return Timeline.timeToMinutesSinceWake(timeStr, wakeMinutes);
-    },
-
-    getDateKey(date = new Date()) {
-        return date.toISOString().split('T')[0];
-    },
-
     sanitize(str, maxLength = 100) {
         return str ? str.trim().slice(0, maxLength) : '';
-    },
-
-    addMinutesToTime(timeStr, minutes) {
-        const baseMinutes = this.timeToMinutes(timeStr);
-        const totalMinutes = baseMinutes + minutes;
-        return this.minutesToTime(totalMinutes);
     },
 
     debounce(func, wait) {
@@ -342,25 +451,6 @@ const Utils = {
         };
     },
 
-    getTimeUntil(targetTime, currentTime = null) {
-        const currentMinutes = currentTime ? this.timeToMinutes(currentTime) : this.getCurrentMinutes();
-        const targetMinutes = this.timeToMinutes(targetTime);
-        let diff = targetMinutes - currentMinutes;
-        
-        if (diff < 0) {
-            diff += 1440; // Add 24 hours if target is next day
-        }
-        
-        const hours = Math.floor(diff / 60);
-        const minutes = diff % 60;
-        
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        } else {
-            return `${minutes}m`;
-        }
-    },
-
     formatDuration(minutes) {
         if (minutes < 60) {
             return `${minutes}min`;
@@ -369,33 +459,15 @@ const Utils = {
             const mins = minutes % 60;
             return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
         }
-    },
-    
-    // Format time elapsed since wake
-    formatTimeSinceWake(minutesSinceWake) {
-        if (minutesSinceWake < 0) return "not yet";
-        if (minutesSinceWake === 0) return "just now";
-        
-        const hours = Math.floor(minutesSinceWake / 60);
-        const mins = minutesSinceWake % 60;
-        
-        if (hours > 0) {
-            return `${hours}h ${mins}m ago`;
-        } else {
-            return `${mins}m ago`;
-        }
     }
 };
 
-// Storage
 const Storage = {
     async load() {
         try {
-            // Always try localStorage first for better reliability
             const data = localStorage.getItem('habitTracker');
             const parsed = data ? JSON.parse(data) : this.getDefault();
             
-            // Try to sync with Firebase if available
             if (window.db) {
                 try {
                     const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
@@ -404,7 +476,6 @@ const Storage = {
                     
                     if (docSnap.exists()) {
                         const firebaseData = docSnap.data();
-                        // Merge with local data, preferring more recent updates
                         if (firebaseData.updatedAt > parsed.updatedAt) {
                             localStorage.setItem('habitTracker', JSON.stringify(firebaseData));
                             return firebaseData;
@@ -424,14 +495,12 @@ const Storage = {
 
     async save(data) {
         try {
-            // Always save to localStorage first
             const dataWithTimestamp = {
                 ...data,
                 updatedAt: new Date().toISOString()
             };
             localStorage.setItem('habitTracker', JSON.stringify(dataWithTimestamp));
             
-            // Try to sync with Firebase if available
             if (window.db) {
                 try {
                     const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
@@ -452,7 +521,7 @@ const Storage = {
         if (window.db) {
             try {
                 const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-                const historyRef = doc(window.db, 'history', this.getUserId() + '_' + Utils.getDateKey());
+                const historyRef = doc(window.db, 'history', this.getUserId() + '_' + TimeUtils.getDateKey());
                 await setDoc(historyRef, {
                     ...historyData,
                     userId: this.getUserId(),
@@ -484,41 +553,9 @@ const Storage = {
             history: {},
             settings: { theme: 'light', notifications: true }
         };
-    },
-
-    export() {
-        const data = JSON.stringify(this.load(), null, 2);
-        const blob = new Blob([data], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `habits-${new Date().toISOString().split('T')[0]}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
-    },
-
-    async import(file) {
-        return new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = (e) => {
-                try {
-                    const data = JSON.parse(e.target.result);
-                    if (data.templates && data.completions) {
-                        this.save(data);
-                        resolve(data);
-                    } else {
-                        reject(new Error('Invalid file format'));
-                    }
-                } catch (error) {
-                    reject(error);
-                }
-            };
-            reader.readAsText(file);
-        });
     }
 };
 
-// Analytics
 const Analytics = {
     calculateStreak(completions, habitCount) {
         if (!completions || habitCount === 0) return 0;
@@ -527,7 +564,7 @@ const Analytics = {
         let date = new Date();
         
         for (let i = 0; i < 365; i++) {
-            const key = Utils.getDateKey(date);
+            const key = TimeUtils.getDateKey(date);
             const completed = completions[key] || [];
             const rate = habitCount > 0 ? completed.length / habitCount : 0;
             
@@ -551,7 +588,7 @@ const Analytics = {
         for (let i = 0; i < 7; i++) {
             const date = new Date();
             date.setDate(date.getDate() - i);
-            const key = Utils.getDateKey(date);
+            const key = TimeUtils.getDateKey(date);
             const dayCompleted = completions[key] || [];
             
             total += habitCount;
@@ -564,8 +601,8 @@ const Analytics = {
     calculateDailyStats(data, habits) {
         if (!data || !habits) return null;
         
-        const today = Utils.getDateKey();
-        const yesterday = Utils.getDateKey(new Date(Date.now() - 86400000));
+        const today = TimeUtils.getDateKey();
+        const yesterday = TimeUtils.getDateKey(new Date(Date.now() - 86400000));
         
         const todayCompleted = (data.completions?.[today] || []).length;
         const yesterdayCompleted = (data.completions?.[yesterday] || []).length;
@@ -574,7 +611,7 @@ const Analytics = {
         for (let i = 0; i < 7; i++) {
             const date = new Date();
             date.setDate(date.getDate() - i);
-            const key = Utils.getDateKey(date);
+            const key = TimeUtils.getDateKey(date);
             weekTotal += habits.length;
             weekCompleted += (data.completions?.[key] || []).length;
         }
@@ -612,7 +649,6 @@ const Analytics = {
     }
 };
 
-// Notifications
 const Notifications = {
     async request() {
         if ('Notification' in window) {
@@ -678,9 +714,9 @@ const Notifications = {
     }
 };
 
-// Export to global scope
 window.Storage = Storage;
 window.Utils = Utils;
 window.Analytics = Analytics;
 window.Notifications = Notifications;
-window.Timeline = Timeline;
+window.TimeUtils = TimeUtils;
+window.TimelineCalculator = TimelineCalculator;

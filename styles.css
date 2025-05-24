@@ -96,8 +96,7 @@ body {
     padding-left: clamp(0.25rem, 1vw, 0.5rem);
     text-align: right;
     width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
 }
 
 .ruler-label.wake {
@@ -111,6 +110,7 @@ body {
     right: clamp(0.0625rem, 0.5vw, 0.125rem);
     width: auto;
     max-width: calc(100% - clamp(0.125rem, 1vw, 0.25rem));
+	overflow: visible;
 }
 
 .drag-position-indicator {

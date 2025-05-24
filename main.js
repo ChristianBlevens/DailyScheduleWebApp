@@ -339,6 +339,16 @@ document.addEventListener('alpine:init', () => {
                         this.updateVisibleRange();
                     });
                 });
+				
+				this.$watch("isAwake", (newAwake, oldAwake) => {
+					// Only update if we're awake
+                    if (this.isAwake) {
+                        this.$nextTick(() => {
+                            this.updateTimeline();
+                            this.scrollToCurrentTime();
+                        });
+                    }
+                }, { deep: true });
                 
             } catch (error) {
                 console.error('Init error:', error);
@@ -850,18 +860,14 @@ document.addEventListener('alpine:init', () => {
         },
 
         async wakeUp() {
-            this.isAwake = true;
-            this.wakeUpTime = this.getCurrentTime();
-            
-            await this.saveData();
-            await this.loadData();
-            
-            Notifications.scheduleAllHabits(this.habits, this.wakeUpTime);
-            
-            this.$nextTick(() => {
-                this.scrollToCurrentTime();
-            });
-        },
+			this.isAwake = true;
+			this.wakeUpTime = this.getCurrentTime();
+			
+			await this.saveData();
+			await this.loadData();
+
+			Notifications.scheduleAllHabits(this.habits, this.wakeUpTime);
+		},
 
         endDay() {
             this.calculateSummaryStats();

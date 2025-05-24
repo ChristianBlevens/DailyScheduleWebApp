@@ -4,6 +4,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Daily Habit Tracker</title>
+	
+	<link rel="icon" type="image/svg" href="./favicon.svg"/>
+	
+	<!-- Prevent favicon.ico request -->
+    <link rel="icon" href="data:,">
     
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
@@ -16,7 +21,7 @@
     <script src="https://unpkg.com/dayjs@1.11.10/plugin/customParseFormat.js"></script>
     <script src="https://unpkg.com/dayjs@1.11.10/plugin/duration.js"></script>
     <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js"></script>
-    
+
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';

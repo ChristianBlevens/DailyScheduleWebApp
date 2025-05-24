@@ -23,18 +23,8 @@ body {
     overscroll-behavior: none;
 }
 
-.timeline-viewport {
-    position: relative;
-    height: calc(100vh - var(--header-height) - 8rem);
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    overscroll-behavior-y: contain;
-}
-
 .timeline-container {
     position: relative;
-    min-height: 100%;
     width: 100%;
 }
 

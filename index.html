@@ -40,6 +40,9 @@
     </script>
     
     <link rel="stylesheet" href="styles.css">
+    <style>
+        [x-cloak] { display: none !important; }
+    </style>
     <script src="app_helpers.js"></script>
     <script src="main.js"></script>
 </head>
@@ -90,34 +93,32 @@
         </div>
 
         <main x-show="isAwake && !showAnalytics" class="pb-20">
-            <div class="timeline-viewport" x-ref="viewport" @scroll="handleViewportScroll">
-				
-				<div class="p-4 bg-gray-50 border-b">
-					<div class="flex justify-between text-sm mb-2">
-						<span>Progress</span>
-						<span x-text="`${completedCount}/${habits.length}`"></span>
-					</div>
-					<div class="bg-gray-200 rounded-full h-3">
-						<div class="bg-green-500 h-3 rounded-full transition-all progress-bar" :style="`width: ${progressPercent}%`"></div>
-					</div>
-				</div>
+            <div class="p-4 bg-gray-50 border-b">
+                <div class="flex justify-between text-sm mb-2">
+                    <span>Progress</span>
+                    <span x-text="`${completedCount}/${habits.length}`"></span>
+                </div>
+                <div class="bg-gray-200 rounded-full h-3">
+                    <div class="bg-green-500 h-3 rounded-full transition-all progress-bar" :style="`width: ${progressPercent}%`"></div>
+                </div>
+            </div>
 
-				<div x-show="availableTags.length" class="p-4 bg-gray-100 border-b">
-					<div class="flex justify-between items-center mb-2">
-						<span class="text-sm font-medium">Filter Tags</span>
-						<button x-show="selectedTags.length" @click="selectedTags = []" class="text-xs text-blue-600">Clear</button>
-					</div>
-					<div class="flex flex-wrap gap-1">
-						<template x-for="tag in availableTags">
-							<button @click="toggleTagFilter(tag)" 
-									:class="selectedTags.includes(tag) ? 'bg-blue-500 text-white' : 'bg-white'" 
-									class="text-xs px-2 py-1 rounded border tag-filter" 
-									x-text="tag"></button>
-						</template>
-					</div>
-				</div>
-			
-                <div class="timeline-container" 
+            <div x-show="availableTags.length" class="p-4 bg-gray-100 border-b">
+                <div class="flex justify-between items-center mb-2">
+                    <span class="text-sm font-medium">Filter Tags</span>
+                    <button x-show="selectedTags.length" @click="selectedTags = []" class="text-xs text-blue-600">Clear</button>
+                </div>
+                <div class="flex flex-wrap gap-1">
+                    <template x-for="tag in availableTags">
+                        <button @click="toggleTagFilter(tag)" 
+                                :class="selectedTags.includes(tag) ? 'bg-blue-500 text-white' : 'bg-white'" 
+                                class="text-xs px-2 py-1 rounded border tag-filter" 
+                                x-text="tag"></button>
+                    </template>
+                </div>
+            </div>
+            
+            <div class="timeline-container" 
                      x-ref="timeline"
                      :style="`height: ${timelineHeight}px`"
                      @touchstart="handleTouchStart"
@@ -299,7 +300,8 @@
             <i class="fas fa-plus text-xl"></i>
         </button>
 
-        <div x-show="showModal" class="modal-backdrop" @click.self="closeModal()">
+        <div x-show="showModal" x-cloak x-transition.opacity class="modal-backdrop" @click.self="closeModal()">
+            <div class="modal-container" @click.stop>
             <div class="modal-container" @click.stop>
                 <div class="modal-header">
                     <h3 class="modal-title" x-text="editingHabit ? 'Edit Habit' : 'New Habit'"></h3>
@@ -317,12 +319,12 @@
                     <h4 class="font-semibold text-sm mb-2">Markdown & Embed Guide:</h4>
                     <div class="text-xs space-y-1 text-gray-700">
                         <p><strong>**bold**</strong> • <em>*italic*</em> • <u>__underline__</u></p>
-                        <p>[title](url) • # Heading • - List item</p>
-                        <p>Images: ![title](image-url)</p>
+                        <p>[link text](url) • # Heading • - List item</p>
+                        <p>Images: ![description](image-url)</p>
                         <p>YouTube: !video[title](youtube-url)</p>
                         <p>Vimeo: !video[title](vimeo-url)</p>
                         <p>Imgur: !video[title](imgur-video-url)</p>
-                        <p class="text-gray-500 italic">Tip: Replace "title" with your text when using toolbar buttons</p>
+                        <p class="text-gray-500 italic">Tip: Replace "blank" with your text when using toolbar buttons</p>
                     </div>
                 </div>
                 
@@ -348,13 +350,13 @@
                                     <button type="button" @click="insertMarkdown('# ', '')" class="format-button" title="Header">
                                         <i class="fas fa-heading"></i>
                                     </button>
-                                    <button type="button" @click="insertMarkdown('[title]', '()')" class="format-button" title="Link">
+                                    <button type="button" @click="insertMarkdown('[blank]', '()')" class="format-button" title="Link">
                                         <i class="fas fa-link"></i>
                                     </button>
-                                    <button type="button" @click="insertMarkdown('![title]', '()')" class="format-button" title="Image">
+                                    <button type="button" @click="insertMarkdown('![blank]', '()')" class="format-button" title="Image">
                                         <i class="fas fa-image"></i>
                                     </button>
-                                    <button type="button" @click="insertMarkdown('!video[title]', '()')" class="format-button" title="Video">
+                                    <button type="button" @click="insertMarkdown('!video[blank]', '()')" class="format-button" title="Video">
                                         <i class="fas fa-video"></i>
                                     </button>
                                 </div>
@@ -407,7 +409,6 @@
                         <div class="flex flex-wrap gap-2">
                             <template x-for="(tag, index) in form.tags">
                                 <span class="tag-pill">
-                                    <span x-text="tag"></span>
                                     <button type="button" @click="form.tags.splice(index, 1)" 
                                             class="ml-2 text-blue-600 hover:text-blue-800">&times;</button>
                                 </span>
@@ -451,7 +452,7 @@
             </div>
         </div>
 
-        <div x-show="showSummary" class="modal-backdrop" @click.self="showSummary = false">
+        <div x-show="showSummary" x-cloak x-transition.opacity class="modal-backdrop" @click.self="showSummary = false">
             <div class="summary-modal summary-enter">
                 <h3 class="text-2xl font-bold mb-6 text-center">Day Complete! 🌙</h3>
                 

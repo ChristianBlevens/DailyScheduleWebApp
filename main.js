@@ -194,9 +194,13 @@ document.addEventListener('alpine:init', () => {
         handleDragMove(clientY) {
             if (!this.isDragging) return;
             
-            const viewport = this.$refs.viewport;
-            const rect = viewport.getBoundingClientRect();
-            const relativeY = clientY - rect.top + viewport.scrollTop;
+            // Get the timeline container position relative to the page
+            const timeline = this.$refs.timeline;
+            const rect = timeline.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Calculate position relative to the timeline
+            const relativeY = clientY + scrollTop - rect.top - scrollTop;
             
             this.dragPosition = Math.max(0, Math.min(this.timelineHeight, relativeY));
             
@@ -205,13 +209,11 @@ document.addEventListener('alpine:init', () => {
                 this.dragTimeDisplay = TimeUtils.formatTime(time, true);
             }
             
-            if (clientY < rect.top + 50) {
-                viewport.scrollTop = Math.max(0, viewport.scrollTop - 10);
-            } else if (clientY > rect.bottom - 50) {
-                viewport.scrollTop = Math.min(
-                    viewport.scrollHeight - viewport.clientHeight,
-                    viewport.scrollTop + 10
-                );
+            // Auto-scroll the page if dragging near edges
+            if (clientY < 100) {
+                window.scrollBy(0, -10);
+            } else if (clientY > window.innerHeight - 100) {
+                window.scrollBy(0, 10);
             }
         },
 
@@ -245,19 +247,25 @@ document.addEventListener('alpine:init', () => {
         },
 
         handleViewportScroll() {
-            const viewport = this.$refs.viewport;
-            this.scrollTop = viewport.scrollTop;
+            // Update visible range based on window scroll
             this.updateVisibleRange();
         },
 
         updateVisibleRange() {
-            const viewport = this.$refs.viewport;
-            if (!viewport) return;
+            const timeline = this.$refs.timeline;
+            if (!timeline) return;
             
-            this.viewportHeight = viewport.clientHeight;
+            const rect = timeline.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            
+            // Calculate what portion of the timeline is visible
+            const visibleTop = Math.max(0, -rect.top);
+            const visibleBottom = visibleTop + windowHeight;
+            
             this.visibleRange = {
-                start: this.scrollTop,
-                end: this.scrollTop + this.viewportHeight
+                start: visibleTop,
+                end: visibleBottom
             };
         },
 
@@ -292,6 +300,11 @@ document.addEventListener('alpine:init', () => {
                     this.setupDragDrop();
                     this.updateVisibleRange();
                     this.scrollToCurrentTime();
+                    
+                    // Add window scroll listener
+                    window.addEventListener('scroll', () => {
+                        this.updateVisibleRange();
+                    });
                 });
                 
             } catch (error) {
@@ -430,11 +443,20 @@ document.addEventListener('alpine:init', () => {
         },
 
         scrollToCurrentTime() {
-            const viewport = this.$refs.viewport;
-            if (!viewport) return;
+            const timeline = this.$refs.timeline;
+            if (!timeline) return;
             
-            const targetScroll = Math.max(0, this.currentTimePosition - viewport.clientHeight / 2);
-            viewport.scrollTop = targetScroll;
+            const rect = timeline.getBoundingClientRect();
+            const scrollTop = window.pageYOffset || document.documentElement.scrollTop;
+            const timelineTop = rect.top + scrollTop;
+            
+            // Calculate target scroll position
+            const targetScroll = timelineTop + this.currentTimePosition - window.innerHeight / 2;
+            
+            window.scrollTo({
+                top: Math.max(0, targetScroll),
+                behavior: 'smooth'
+            });
         },
 
         toggleCompletion(habit) {
@@ -628,16 +650,15 @@ document.addEventListener('alpine:init', () => {
                 this.updateVisibleRange();
             });
             
-            const viewport = this.$refs.viewport;
-            if (viewport) {
-                this.resizeObserver.observe(viewport);
+            const timeline = this.$refs.timeline;
+            if (timeline) {
+                this.resizeObserver.observe(timeline);
             }
             
             if (this.hammerInstance) {
                 this.hammerInstance.destroy();
             }
             
-            const timeline = this.$refs.timeline;
             if (timeline && typeof Hammer !== 'undefined') {
                 this.hammerInstance = new Hammer(timeline);
                 this.hammerInstance.get('pan').set({ direction: Hammer.DIRECTION_VERTICAL });

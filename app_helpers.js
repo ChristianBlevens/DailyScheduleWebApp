@@ -82,7 +82,10 @@ const TimelineCalculator = {
         const slots = [];
         const wakeMinutes = TimeUtils.timeToMinutes(wakeUpTime);
         
-        const sortedHabits = [...habits].sort((a, b) => {
+        // Filter out any habits that might be marked as hidden
+        const visibleHabits = habits.filter(h => !h.hidden);
+        
+        const sortedHabits = [...visibleHabits].sort((a, b) => {
             const aMinutes = TimeUtils.getMinutesSinceWake(a.effectiveTime, wakeUpTime);
             const bMinutes = TimeUtils.getMinutesSinceWake(b.effectiveTime, wakeUpTime);
             return aMinutes - bMinutes;
@@ -353,6 +356,22 @@ const TimelineCalculator = {
         
         // Find segments from slots
         const segments = this.reconstructSegments(slots);
+        
+        // If position is before the first segment, return wake time
+        if (segments.length > 0 && position < segments[0].position) {
+            return {
+                timeStr: wakeUpTime,
+                minutesSinceWake: 0
+            };
+        }
+        
+        // If position is after the last segment, return end of day
+        if (segments.length > 0 && position > segments[segments.length - 1].position) {
+            return {
+                timeStr: TimeUtils.minutesToTime((wakeMinutes + 1439) % 1440),
+                minutesSinceWake: 1439
+            };
+        }
         
         for (let i = 0; i < segments.length - 1; i++) {
             const start = segments[i];

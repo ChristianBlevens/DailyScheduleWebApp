@@ -351,7 +351,7 @@
         </button>
 
         <!-- Add/Edit habit modal -->
-        <div x-show="showModal" class="modal-backdrop" @click.self="closeModal()">
+        <div x-show="showModal" class="modal-backdrop" @mousedown.self="modalBackdropMousedown = true" @click.self="modalBackdropMousedown && closeModal(); modalBackdropMousedown = false">
             <div class="modal-container" @click.stop>
                 <div class="modal-header">
                     <h3 class="modal-title" x-text="editingHabit ? 'Edit Habit' : 'New Habit'"></h3>

@@ -339,6 +339,10 @@ body {
 /* Drag handle cursor */
 .drag-handle {
     cursor: grab;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 /* Active drag handle cursor */

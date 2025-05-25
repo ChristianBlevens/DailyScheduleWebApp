@@ -20,6 +20,8 @@ document.addEventListener('alpine:init', () => {
         selectedTags: [],
         sortableInstance: null,
         lastActiveInput: 'main',
+        modalBackdropMousedown: false,
+        summaryBackdropMousedown: false,
         
         // Drag state
         isDragging: false,
@@ -220,6 +222,11 @@ document.addEventListener('alpine:init', () => {
             this.draggingHabitId = habitId;
             this.dragStartY = clientY;
             document.body.classList.add('dragging');
+            
+            // Prevent text selection during drag
+            if (window.getSelection) {
+                window.getSelection().removeAllRanges();
+            }
             
             const habit = this.habits.find(h => h.id === habitId);
             if (habit) {

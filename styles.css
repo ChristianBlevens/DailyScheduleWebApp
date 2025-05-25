@@ -1,19 +1,22 @@
+/* CSS custom properties for responsive sizing */
 :root {
-    --ruler-width: clamp(3rem, 12vw, 7.5rem);
-    --tile-padding: clamp(0.5rem, 2vw, 1rem);
-    --tile-gap: clamp(0.75rem, 3vw, 1.25rem);
-    --tile-height: clamp(3.5rem, 10vw, 4.375rem);
-    --header-height: 5rem;
-    --fab-size: clamp(3rem, 10vw, 4rem);
-    --touch-target: max(2.75rem, 44px);
-    --timeline-padding: clamp(1rem, 4vw, 2.5rem);
+    --ruler-width: clamp(3rem, 12vw, 7.5rem);          /* Timeline ruler width */
+    --tile-padding: clamp(0.5rem, 2vw, 1rem);          /* Habit tile padding */
+    --tile-gap: clamp(0.75rem, 3vw, 1.25rem);          /* Gap between tiles */
+    --tile-height: clamp(3.5rem, 10vw, 4.375rem);      /* Default tile height */
+    --header-height: 5rem;                              /* App header height */
+    --fab-size: clamp(3rem, 10vw, 4rem);               /* Floating action button size */
+    --touch-target: max(2.75rem, 44px);                 /* Minimum touch target size */
+    --timeline-padding: clamp(1rem, 4vw, 2.5rem);      /* Timeline edge padding */
 }
 
+/* Remove tap highlight on mobile */
 * {
     -webkit-tap-highlight-color: transparent;
     touch-action: manipulation;
 }
 
+/* Prevent bounce scrolling on mobile */
 body {
     overscroll-behavior: none;
     -webkit-overflow-scrolling: touch;
@@ -23,6 +26,7 @@ body {
     overscroll-behavior: none;
 }
 
+/* Timeline container setup */
 .timeline-container {
     position: relative;
     width: 100%;
@@ -34,6 +38,7 @@ body {
     height: 100%;
 }
 
+/* Right-side timeline ruler */
 .timeline-ruler {
     position: absolute;
     right: 0;
@@ -46,6 +51,7 @@ body {
     overflow: visible;
 }
 
+/* Ruler tick marks */
 .ruler-tick {
     position: absolute;
     left: 0;
@@ -53,29 +59,34 @@ body {
     transform: translateY(-50%);
 }
 
+/* Major tick (hours) */
 .ruler-tick.major {
     width: min(40%, 1.5rem);
     height: 2px;
 }
 
+/* Medium tick (30 minutes) */
 .ruler-tick.medium {
     width: min(30%, 1.125rem);
     height: 1.5px;
     background: #475569;
 }
 
+/* Minor tick (15 minutes) */
 .ruler-tick.minor {
     width: min(20%, 0.75rem);
     height: 1px;
     background: #64748b;
 }
 
+/* Micro tick (5 minutes or less) */
 .ruler-tick.micro {
     width: min(10%, 0.375rem);
     height: 1px;
     background: #cbd5e1;
 }
 
+/* Habit position tick */
 .ruler-tick.habit {
     width: min(50%, 1.875rem);
     height: 2px;
@@ -83,6 +94,7 @@ body {
     z-index: 15;
 }
 
+/* Time labels on ruler */
 .ruler-label {
     position: absolute;
     right: 0;
@@ -99,6 +111,7 @@ body {
     overflow: visible;
 }
 
+/* Wake time label styling */
 .ruler-label.wake {
     background: #f59e0b;
     color: white;
@@ -113,6 +126,7 @@ body {
 	overflow: visible;
 }
 
+/* Drag position indicator line */
 .drag-position-indicator {
     position: absolute;
     left: 0;
@@ -124,6 +138,7 @@ body {
     box-shadow: 0 0 8px rgba(59, 130, 246, 0.5);
 }
 
+/* Drag position indicator glow */
 .drag-position-indicator::before {
     content: '';
     position: absolute;
@@ -134,6 +149,7 @@ body {
     background: rgba(59, 130, 246, 0.2);
 }
 
+/* Drag marker on ruler */
 .drag-ruler-marker {
     position: absolute;
     left: -5%;
@@ -147,6 +163,7 @@ body {
     box-shadow: 0 0 8px rgba(59, 130, 246, 0.8);
 }
 
+/* Drag marker arrow */
 .drag-ruler-marker::after {
     content: '';
     position: absolute;
@@ -159,12 +176,14 @@ body {
     border-left: 8px solid #3b82f6;
 }
 
+/* Container for habit tiles */
 .habits-container {
     position: relative;
     width: 100%;
     padding-bottom: calc(var(--timeline-padding) * 2);
 }
 
+/* Individual habit tile */
 .event-tile {
     position: absolute;
     left: var(--timeline-padding);
@@ -181,6 +200,7 @@ body {
     transform-origin: center top;
 }
 
+/* Expanded habit tile */
 .event-tile.expanded {
     height: auto;
     z-index: 25;
@@ -188,6 +208,7 @@ body {
     transform: translateY(calc(var(--tile-height) / -2));
 }
 
+/* Habit tile header section */
 .tile-header {
     display: flex;
     align-items: center;
@@ -195,6 +216,7 @@ body {
     min-height: calc(var(--tile-height) - var(--tile-padding) * 2);
 }
 
+/* Main content area of tile */
 .tile-main {
     display: flex;
     align-items: center;
@@ -203,6 +225,7 @@ body {
     min-width: 0;
 }
 
+/* Completion checkbox button */
 .checkbox-button {
     width: clamp(1.25rem, 4vw, 1.5rem);
     height: clamp(1.25rem, 4vw, 1.5rem);
@@ -217,6 +240,7 @@ body {
     cursor: pointer;
 }
 
+/* Checked state for checkbox */
 .checkbox-button.checked {
     background: #10b981;
     border-color: #10b981;
@@ -224,11 +248,13 @@ body {
     transform: scale(1.1);
 }
 
+/* Tile content area */
 .tile-content {
     flex: 1;
     min-width: 0;
 }
 
+/* Habit title text */
 .tile-title {
     font-size: clamp(0.875rem, 3vw, 1rem);
     font-weight: 600;
@@ -239,11 +265,13 @@ body {
     transition: all 0.2s ease;
 }
 
+/* Completed habit title style */
 .tile-title.completed {
     text-decoration: line-through;
     color: #6b7280;
 }
 
+/* Metadata row under title */
 .tile-meta {
     display: flex;
     align-items: center;
@@ -251,6 +279,7 @@ body {
     margin-top: 0.125rem;
 }
 
+/* Time display text */
 .time-display {
     font-family: 'Inter', monospace;
     font-size: clamp(0.688rem, 2.25vw, 0.875rem);
@@ -258,6 +287,7 @@ body {
     color: #4b5563;
 }
 
+/* Duration and dynamic badges */
 .duration-badge,
 .dynamic-badge {
     font-size: clamp(0.563rem, 1.75vw, 0.75rem);
@@ -265,16 +295,19 @@ body {
     border-radius: 0.25rem;
 }
 
+/* Duration badge styling */
 .duration-badge {
     background: #dbeafe;
     color: #1e40af;
 }
 
+/* Dynamic time badge styling */
 .dynamic-badge {
     background: #fed7aa;
     color: #c2410c;
 }
 
+/* Action buttons container */
 .tile-actions {
     display: flex;
     align-items: center;
@@ -282,6 +315,7 @@ body {
     flex-shrink: 0;
 }
 
+/* Individual action button */
 .action-button {
     width: clamp(2.25rem, 8vw, var(--touch-target));
     height: clamp(2.25rem, 8vw, var(--touch-target));
@@ -297,34 +331,41 @@ body {
     font-size: clamp(0.875rem, 2.5vw, 1.125rem);
 }
 
+/* Action button hover state */
 .action-button:hover {
     color: #3b82f6;
 }
 
+/* Drag handle cursor */
 .drag-handle {
     cursor: grab;
 }
 
+/* Active drag handle cursor */
 .drag-handle:active {
     cursor: grabbing;
 }
 
+/* Expanded tile content area */
 .tile-expanded {
     margin-top: clamp(0.75rem, 2vw, 1rem);
     padding-top: clamp(0.75rem, 2vw, 1rem);
     border-top: 1px solid #e5e7eb;
 }
 
+/* Habit description text */
 .tile-description {
     color: #4b5563;
     font-size: clamp(0.813rem, 2.25vw, 0.938rem);
     line-height: 1.5;
 }
 
+/* Sub-habits container */
 .sub-habits {
     margin-top: clamp(0.75rem, 2vw, 1rem);
 }
 
+/* Sub-habits title */
 .sub-habits-title {
     font-size: clamp(0.813rem, 2.25vw, 0.938rem);
     font-weight: 600;
@@ -332,6 +373,7 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Individual sub-habit item */
 .sub-habit-item {
     background: #f9fafb;
     padding: clamp(0.5rem, 2vw, 0.75rem);
@@ -339,12 +381,14 @@ body {
     margin-bottom: 0.5rem;
 }
 
+/* Sub-habit header row */
 .sub-habit-header {
     display: flex;
     align-items: center;
     gap: 0.5rem;
 }
 
+/* Sub-habit checkbox */
 .sub-checkbox {
     width: clamp(1rem, 3vw, 1.25rem);
     height: clamp(1rem, 3vw, 1.25rem);
@@ -358,12 +402,14 @@ body {
     flex-shrink: 0;
 }
 
+/* Checked sub-habit checkbox */
 .sub-checkbox.checked {
     background: #10b981;
     border-color: #10b981;
     color: white;
 }
 
+/* Sub-habit description text */
 .sub-habit-description {
     font-size: clamp(0.688rem, 1.75vw, 0.813rem);
     color: #6b7280;
@@ -371,6 +417,7 @@ body {
     padding-left: calc(clamp(1rem, 3vw, 1.25rem) + 0.5rem);
 }
 
+/* Current time indicator line */
 .current-time-line {
     position: absolute;
     left: 0;
@@ -382,6 +429,7 @@ body {
     border-radius: 2px;
 }
 
+/* Current time indicator dot */
 .current-time-line::after {
     content: '';
     position: absolute;
@@ -394,6 +442,7 @@ body {
     border: 2px solid white;
 }
 
+/* Hour marker lines */
 .hour-line {
     position: absolute;
     left: 0;
@@ -403,11 +452,13 @@ body {
     z-index: 1;
 }
 
+/* Major hour lines */
 .hour-line.major {
     background: #cbd5e1;
     height: 2px;
 }
 
+/* Primary button styling */
 .primary-button {
     background: #3b82f6;
     color: white;
@@ -423,11 +474,13 @@ body {
     justify-content: center;
 }
 
+/* Primary button hover */
 .primary-button:hover {
     background: #2563eb;
     transform: scale(1.05);
 }
 
+/* Floating action button */
 .fab {
     position: fixed;
     bottom: clamp(1.5rem, 5vw, 2rem);
@@ -447,11 +500,13 @@ body {
     cursor: pointer;
 }
 
+/* FAB hover state */
 .fab:hover {
     transform: scale(1.1);
     box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
 }
 
+/* Touch target helper class */
 .touch-target {
     min-width: var(--touch-target);
     min-height: var(--touch-target);
@@ -460,6 +515,7 @@ body {
     justify-content: center;
 }
 
+/* Modal backdrop overlay */
 .modal-backdrop {
     position: fixed;
     inset: 0;
@@ -472,6 +528,7 @@ body {
     padding: 1rem;
 }
 
+/* Modal container */
 .modal-container {
     background: white;
     border-radius: 1rem;
@@ -484,6 +541,7 @@ body {
     z-index: 1001;
 }
 
+/* Modal header bar */
 .modal-header {
     padding: clamp(1rem, 3vw, 1.5rem);
     border-bottom: 1px solid #e5e7eb;
@@ -492,11 +550,13 @@ body {
     align-items: center;
 }
 
+/* Modal title text */
 .modal-title {
     font-size: clamp(1.125rem, 3vw, 1.25rem);
     font-weight: 600;
 }
 
+/* Modal body content */
 .modal-body {
     padding: clamp(1rem, 3vw, 1.5rem);
     display: flex;
@@ -504,12 +564,14 @@ body {
     gap: clamp(1rem, 3vw, 1.25rem);
 }
 
+/* Markdown help section */
 .markdown-help {
     padding: clamp(0.75rem, 2vw, 1rem);
     background: #eff6ff;
     border-bottom: 1px solid #dbeafe;
 }
 
+/* Form input and textarea base styles */
 .form-input,
 .form-textarea {
     width: 100%;
@@ -520,6 +582,7 @@ body {
     transition: all 0.2s ease;
 }
 
+/* Form element focus state */
 .form-input:focus,
 .form-textarea:focus {
     outline: none;
@@ -527,11 +590,13 @@ body {
     box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+/* Textarea specific styles */
 .form-textarea {
     resize: vertical;
     min-height: 5rem;
 }
 
+/* Markdown format buttons */
 .format-button {
     padding: 0.25rem;
     color: #6b7280;
@@ -542,10 +607,12 @@ body {
     font-size: clamp(0.75rem, 2vw, 0.875rem);
 }
 
+/* Format button hover */
 .format-button:hover {
     color: #1f2937;
 }
 
+/* Tag pill display */
 .tag-pill {
     background: #dbeafe;
     color: #1e40af;
@@ -556,12 +623,14 @@ body {
     align-items: center;
 }
 
+/* Sub-task form container */
 .sub-task-form {
     background: #f9fafb;
     padding: clamp(0.75rem, 2vw, 1rem);
     border-radius: 0.5rem;
 }
 
+/* Day summary modal */
 .summary-modal {
     background: white;
     border-radius: 1rem;
@@ -571,30 +640,36 @@ body {
     box-shadow: 0 20px 40px rgba(0,0,0,0.2);
 }
 
+/* Progress bar animation */
 .progress-bar {
     background: linear-gradient(90deg, #3b82f6, #1d4ed8, #3b82f6);
     background-size: 200% 100%;
     animation: gradient-flow 3s ease infinite;
 }
 
+/* Progress bar gradient animation */
 @keyframes gradient-flow {
     0%, 100% { background-position: 0% 50%; }
     50% { background-position: 100% 50%; }
 }
 
+/* Wake up screen animation */
 .wake-up-animation {
     animation: gentle-bounce 2s ease-in-out infinite;
 }
 
+/* Gentle bounce animation */
 @keyframes gentle-bounce {
     0%, 100% { transform: translateY(0); }
     50% { transform: translateY(-10px); }
 }
 
+/* Summary modal entrance animation */
 .summary-enter {
     animation: summary-slide-in 0.5s ease-out;
 }
 
+/* Summary slide-in animation */
 @keyframes summary-slide-in {
     0% { 
         opacity: 0; 
@@ -606,46 +681,56 @@ body {
     }
 }
 
+/* Habit completion celebration */
 .completion-celebration {
     animation: completion-bounce 0.6s ease-out;
 }
 
+/* Completion bounce animation */
 @keyframes completion-bounce {
     0% { transform: translateY(calc(var(--tile-height) / -2)) scale(1); }
     50% { transform: translateY(calc(var(--tile-height) / -2)) scale(1.1); }
     100% { transform: translateY(calc(var(--tile-height) / -2)) scale(1); }
 }
 
+/* Current time pulse animation */
 .current-time-indicator {
     animation: pulse-red 2s infinite;
 }
 
+/* Red pulse animation */
 @keyframes pulse-red {
     0%, 100% { opacity: 1; }
     50% { opacity: 0.7; }
 }
 
+/* Tag filter button transitions */
 .tag-filter {
     transition: all 0.2s ease;
 }
 
+/* Tag filter hover effect */
 .tag-filter:hover {
     transform: scale(1.05);
 }
 
+/* Habit item transitions */
 .habit-item {
     transition: background-color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
 }
 
+/* Alpine.js cloak helper */
 [x-cloak] { 
     display: none !important; 
 }
 
+/* Markdown rendered content */
 .markdown-content {
     line-height: 1.6;
     word-wrap: break-word;
 }
 
+/* Markdown headings */
 .markdown-content h1,
 .markdown-content h2,
 .markdown-content h3,
@@ -657,29 +742,35 @@ body {
     margin-bottom: 0.5em;
 }
 
+/* Markdown heading sizes */
 .markdown-content h1 { font-size: 1.5em; }
 .markdown-content h2 { font-size: 1.3em; }
 .markdown-content h3 { font-size: 1.1em; }
 
+/* Markdown paragraphs */
 .markdown-content p {
     margin-bottom: 0.75em;
 }
 
+/* Markdown lists */
 .markdown-content ul,
 .markdown-content ol {
     margin-left: 1.5em;
     margin-bottom: 0.75em;
 }
 
+/* Markdown links */
 .markdown-content a {
     color: #3b82f6;
     text-decoration: underline;
 }
 
+/* Markdown link hover */
 .markdown-content a:hover {
     color: #2563eb;
 }
 
+/* Inline code styling */
 .markdown-content code {
     background: #f3f4f6;
     padding: 0.125em 0.25em;
@@ -688,6 +779,7 @@ body {
     font-family: monospace;
 }
 
+/* Code block styling */
 .markdown-content pre {
     background: #f3f4f6;
     padding: 1em;
@@ -696,6 +788,7 @@ body {
     margin-bottom: 0.75em;
 }
 
+/* Blockquote styling */
 .markdown-content blockquote {
     border-left: 4px solid #e5e7eb;
     padding-left: 1em;
@@ -704,6 +797,7 @@ body {
     font-style: italic;
 }
 
+/* Video embed container */
 .video-embed {
     position: relative;
     width: 100%;
@@ -713,11 +807,13 @@ body {
     background: #000;
 }
 
+/* YouTube/Vimeo embed aspect ratio */
 .youtube-embed,
 .vimeo-embed {
     aspect-ratio: 16 / 9;
 }
 
+/* Video iframe positioning */
 .video-embed iframe {
     position: absolute;
     top: 0;
@@ -727,35 +823,42 @@ body {
     border: none;
 }
 
+/* HTML5 video styling */
 .video-embed video {
     width: 100%;
     height: auto;
     max-height: 400px;
 }
 
+/* Markdown image link wrapper */
 .markdown-image-link {
     display: inline-block;
     margin: 0.5em 0;
 }
 
+/* Markdown image styling */
 .markdown-image {
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
     transition: all 0.3s ease;
 }
 
+/* Markdown image hover effect */
 .markdown-image:hover {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
     transform: scale(1.02);
 }
 
+/* Body cursor during drag */
 body.dragging {
     cursor: grabbing !important;
 }
 
+/* Override all cursors during drag */
 body.dragging * {
     cursor: grabbing !important;
 }
 
+/* Reduced motion accessibility */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -770,6 +873,7 @@ body.dragging * {
     }
 }
 
+/* Safe area insets for devices with notches */
 @supports (padding: max(0px)) {
     .modal-container {
         padding-bottom: max(1rem, env(safe-area-inset-bottom));
@@ -781,6 +885,7 @@ body.dragging * {
     }
 }
 
+/* Hover effects for devices with precise pointers */
 @media (hover: hover) and (pointer: fine) {
     .event-tile:hover {
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
@@ -788,7 +893,9 @@ body.dragging * {
     }
 }
 
+/* Print styles */
 @media print {
+    /* Hide non-printable elements */
     .no-print,
     button,
     .fixed,
@@ -797,10 +904,12 @@ body.dragging * {
         display: none !important;
     }
     
+    /* Make timeline printable */
     .timeline-container {
         overflow: visible;
     }
     
+    /* Adjust tile layout for print */
     .event-tile {
         position: relative;
         margin-bottom: 1rem;

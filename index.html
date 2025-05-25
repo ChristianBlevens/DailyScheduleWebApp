@@ -5,21 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Daily Habit Tracker</title>
     
+    <!-- Favicon -->
     <link rel="icon" type="image/svg" href="./favicon.svg"/>
     <link rel="icon" href="data:,">
     
+    <!-- External Libraries -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     
+    <!-- Alpine.js for reactive UI -->
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <!-- Drag and drop library -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+    <!-- Markdown parser -->
     <script src="https://cdn.jsdelivr.net/npm/markdown-it/dist/markdown-it.min.js"></script>
+    <!-- Date/time utilities -->
     <script src="https://unpkg.com/dayjs@1.11.10/dayjs.min.js"></script>
     <script src="https://unpkg.com/dayjs@1.11.10/plugin/customParseFormat.js"></script>
     <script src="https://unpkg.com/dayjs@1.11.10/plugin/duration.js"></script>
+    <!-- Touch gesture library -->
     <script src="https://unpkg.com/hammerjs@2.0.8/hammer.min.js"></script>
 
+    <!-- Firebase configuration (commented out) -->
     <script type="module">
         import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
         import { getFirestore } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
@@ -33,7 +41,8 @@
             appId: "demo-app"
         };
         window.db = null;
-        /*try {
+        /*
+		try {
             window.firebaseApp = initializeApp(firebaseConfig);
             window.db = getFirestore(window.firebaseApp);
         } catch (error) {
@@ -43,38 +52,48 @@
 		*/
     </script>
     
+    <!-- App styles and scripts -->
     <link rel="stylesheet" href="styles.css">
     <script src="app_helpers.js"></script>
     <script src="main.js"></script>
 </head>
 <body class="bg-gradient-to-br from-blue-50 to-indigo-100 min-h-screen font-['Inter'] overscroll-none">
+    <!-- Main app container -->
     <div x-data="habitTracker" x-init="init()" class="max-w-6xl mx-auto min-h-screen bg-white shadow-2xl relative">
         
+        <!-- Drag time display overlay -->
         <div x-show="isDragging" 
              x-transition
              class="fixed top-20 left-1/2 transform -translate-x-1/2 bg-blue-600 text-white px-6 py-3 rounded-lg shadow-lg z-50">
             <div class="text-lg font-semibold" x-text="dragTimeDisplay"></div>
         </div>
         
+        <!-- App header -->
         <header class="sticky top-0 z-40 bg-blue-600 text-white p-4">
             <div class="flex justify-between items-center">
                 <h1 class="text-xl font-bold">Daily Habits Timeline</h1>
                 <div class="flex gap-2">
+                    <!-- Analytics button -->
                     <button @click="showAnalytics = !showAnalytics" class="p-2 hover:bg-blue-700 rounded touch-target">
                         <i class="fas fa-chart-line"></i>
                     </button>
+                    <!-- End day button -->
                     <button x-show="isAwake" @click="endDay()" class="p-2 hover:bg-blue-700 rounded touch-target">
                         <i class="fas fa-moon"></i>
                     </button>
+                    <!-- Clear data button -->
                     <button @click="clearAllData()" class="p-2 hover:bg-red-700 rounded touch-target" title="Clear All Data">
                         <i class="fas fa-trash-alt"></i>
                     </button>
                 </div>
             </div>
+            <!-- Date display -->
             <div class="text-sm opacity-90 mt-1" x-text="new Date().toLocaleDateString()"></div>
+            <!-- Wake time display -->
             <div class="text-sm opacity-75" x-show="isAwake" x-text="`Wake time: ${formatTime(wakeUpTime)} (${getTimeAgo()})`"></div>
         </header>
 
+        <!-- Wake up screen -->
         <div x-show="!isAwake" class="flex items-center justify-center h-96 p-8 text-center">
             <div class="space-y-4">
                 <div class="text-6xl wake-up-animation">🌅</div>
@@ -84,11 +103,13 @@
                     <input type="time" x-model="wakeUpTime" class="border rounded px-3 py-2" readonly>
                 </div>
                 <div>
+                    <!-- Start day button -->
                     <button @click="wakeUp()" class="bg-gradient-to-r from-yellow-400 to-orange-500 text-white text-xl font-bold py-4 px-8 rounded-full shadow-lg hover:scale-105 transition touch-target">
                         <i class="fas fa-sun mr-3"></i>Start Day!
                     </button>
                 </div>
                 <div>
+                    <!-- Update time button -->
                     <button @click="wakeUpTime = getCurrentTime()" class="text-sm text-blue-600 hover:text-blue-800 underline">
                         Update to current time
                     </button>
@@ -96,8 +117,10 @@
             </div>
         </div>
 
+        <!-- Main content area -->
         <main x-show="isAwake && !showAnalytics" class="pb-20">
             
+            <!-- Progress bar -->
             <div class="p-4 bg-gray-50 border-b">
                 <div class="flex justify-between text-sm mb-2">
                     <span>Progress</span>
@@ -108,6 +131,7 @@
                 </div>
             </div>
 
+            <!-- Tag filters -->
             <div x-show="availableTags.length" class="p-4 bg-gray-100 border-b">
                 <div class="flex justify-between items-center mb-2">
                     <span class="text-sm font-medium">Filter Tags</span>
@@ -123,6 +147,7 @@
                 </div>
             </div>
 
+            <!-- Timeline viewport -->
             <div class="timeline-viewport" x-ref="viewport" @scroll="handleViewportScroll">
                 <div class="timeline-container" 
                      x-ref="timeline"
@@ -135,6 +160,7 @@
                      @mouseup="handleMouseUp">
                     
                     <div class="timeline-content">
+                        <!-- Hour lines -->
                         <template x-for="(slot, index) in visibleTimeSlots" :key="`slot_${index}_${slot.time}`">
                             <div x-show="slot.type === 'hour' || slot.type === 'wake'" 
                                  class="hour-line" 
@@ -142,14 +168,18 @@
                                  :style="`top: ${slot.position}px`"></div>
                         </template>
                         
+                        <!-- Current time indicator -->
                         <div class="current-time-line current-time-indicator" 
                              :style="`top: ${currentTimePosition}px`"></div>
                         
+                        <!-- Drag position indicator -->
                         <div x-show="isDragging" 
                              class="drag-position-indicator" 
                              :style="`top: ${dragPosition}px`"></div>
                         
+                        <!-- Timeline ruler -->
                         <div class="timeline-ruler" :style="`height: ${timelineHeight}px`">
+                            <!-- Tick marks -->
                             <template x-for="(slot, index) in timeSlots" :key="`tick_${slot.type}_${slot.position}`">
                                 <div class="ruler-tick"
                                      :class="{
@@ -162,6 +192,7 @@
                                      :style="`top: ${slot.position}px`"></div>
                             </template>
 
+                            <!-- Time labels -->
                             <template x-for="(slot, index) in timeSlots.filter(s => s.displayLabel)" :key="`label_${slot.position}`">
                                 <div class="ruler-label" 
                                      :class="{ 'wake': slot.type === 'wake' }"
@@ -170,11 +201,13 @@
                                 </div>
                             </template>
                             
+                            <!-- Drag marker on ruler -->
                             <div x-show="isDragging" 
                                  class="drag-ruler-marker" 
                                  :style="`top: ${dragPosition}px`"></div>
                         </div>
                         
+                        <!-- Habits container -->
                         <div class="habits-container" id="habits-container">
                             <template x-for="habit in visibleHabits" :key="habit.id">
                                 <div class="event-tile habit-item" 
@@ -187,14 +220,17 @@
                                      :style="`top: ${habit.position}px; background-color: ${habit.bgColor}`"
                                      :data-habit-id="habit.id">
                                     
+                                    <!-- Habit header -->
                                     <div class="tile-header">
                                         <div class="tile-main">
+                                            <!-- Completion checkbox -->
                                             <button @click="toggleCompletion(habit)" 
                                                     class="checkbox-button" 
                                                     :class="habit.completed ? 'checked' : ''">
                                                 <i x-show="habit.completed" class="fas fa-check"></i>
                                             </button>
                                             
+                                            <!-- Habit info -->
                                             <div class="tile-content">
                                                 <h3 class="tile-title" 
                                                     :class="{'completed': habit.completed}" 
@@ -210,6 +246,7 @@
                                             </div>
                                         </div>
                                         
+                                        <!-- Action buttons -->
                                         <div class="tile-actions">
                                             <button @click="toggleExpanded(habit)" class="action-button">
                                                 <i class="fas fa-chevron-down transition-transform" 
@@ -227,11 +264,14 @@
                                         </div>
                                     </div>
 
+                                    <!-- Expanded content -->
                                     <div x-show="habit.expanded" x-transition class="tile-expanded">
+                                        <!-- Description -->
                                         <div x-show="habit.description" 
                                              class="tile-description markdown-content" 
                                              x-html="parseMarkdown(habit.description)"></div>
                                         
+                                        <!-- Sub-tasks -->
                                         <div x-show="habit.subHabits && habit.subHabits.length" class="sub-habits">
                                             <h4 class="sub-habits-title">Sub-tasks:</h4>
                                             <template x-for="subHabit in habit.subHabits">
@@ -259,6 +299,7 @@
             </div>
         </main>
 
+        <!-- Analytics view -->
         <div x-show="showAnalytics" class="p-6">
             <div class="flex justify-between items-center mb-6">
                 <h2 class="text-2xl font-bold">Analytics</h2>
@@ -267,6 +308,7 @@
                 </button>
             </div>
             
+            <!-- Streak and weekly rate cards -->
             <div class="grid grid-cols-2 gap-6 mb-8">
                 <div class="bg-blue-50 p-6 rounded-xl text-center">
                     <div class="text-3xl font-bold text-blue-600" x-text="streak"></div>
@@ -278,6 +320,7 @@
                 </div>
             </div>
 
+            <!-- Performance comparison -->
             <div x-show="dailyStats" class="space-y-4">
                 <h3 class="text-lg font-semibold">Performance Comparison</h3>
                 <div class="bg-gray-50 p-6 rounded-xl space-y-4">
@@ -301,25 +344,30 @@
             </div>
         </div>
 
+        <!-- Floating action button -->
         <button x-show="isAwake" @click="showModal = true" 
                 class="fab">
             <i class="fas fa-plus text-xl"></i>
         </button>
 
+        <!-- Add/Edit habit modal -->
         <div x-show="showModal" class="modal-backdrop" @click.self="closeModal()">
             <div class="modal-container" @click.stop>
                 <div class="modal-header">
                     <h3 class="modal-title" x-text="editingHabit ? 'Edit Habit' : 'New Habit'"></h3>
                     <div class="flex items-center gap-2">
+                        <!-- Markdown help button -->
                         <button @click="showMarkdownHelp = !showMarkdownHelp" class="text-gray-400 hover:text-gray-600" title="Markdown Help">
                             <i class="fas fa-info-circle"></i>
                         </button>
+                        <!-- Close button -->
                         <button @click="closeModal()" class="text-gray-400 hover:text-gray-600">
                             <i class="fas fa-times"></i>
                         </button>
                     </div>
                 </div>
                 
+                <!-- Markdown help panel -->
                 <div x-show="showMarkdownHelp" x-transition class="markdown-help">
                     <h4 class="font-semibold text-sm mb-2">Markdown & Embed Guide:</h4>
                     <div class="text-xs space-y-1 text-gray-700">
@@ -333,10 +381,13 @@
                     </div>
                 </div>
                 
+                <!-- Habit form -->
                 <form @submit.prevent="saveHabit()" class="modal-body">
+                    <!-- Title input -->
                     <input type="text" x-model="form.title" placeholder="Habit title" required 
                            class="form-input">
                     
+                    <!-- Description with formatting toolbar -->
                     <div>
                         <div class="flex items-center justify-between mb-1">
                             <label class="text-sm font-medium">Description</label>
@@ -375,12 +426,15 @@
                                   class="form-textarea"></textarea>
                     </div>
                     
+                    <!-- Time settings -->
                     <div class="space-y-4">
+                        <!-- Dynamic time toggle -->
                         <div class="flex items-center gap-3">
                             <input type="checkbox" x-model="form.isDynamic" id="dynamic-time" class="rounded">
                             <label for="dynamic-time" class="text-sm font-medium">Dynamic time (relative to wake up)</label>
                         </div>
                         
+                        <!-- Fixed time inputs -->
                         <div x-show="!form.isDynamic" class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-sm font-medium mb-1">Time</label>
@@ -392,6 +446,7 @@
                             </div>
                         </div>
                         
+                        <!-- Dynamic time inputs -->
                         <div x-show="form.isDynamic" class="grid grid-cols-2 gap-3">
                             <div>
                                 <label class="block text-sm font-medium mb-1">Minutes after wake up</label>
@@ -404,6 +459,7 @@
                         </div>
                     </div>
                     
+                    <!-- Tags -->
                     <div>
                         <label class="block text-sm font-medium mb-2">Tags</label>
                         <div class="flex gap-2 mb-2">
@@ -422,6 +478,7 @@
                         </div>
                     </div>
                     
+                    <!-- Sub-tasks -->
                     <div>
                         <div class="flex justify-between items-center mb-2">
                             <label class="text-sm font-medium">Sub-tasks</label>
@@ -447,6 +504,7 @@
                         </div>
                     </div>
                     
+                    <!-- Form buttons -->
                     <div class="flex gap-3 pt-4">
                         <button type="button" @click="closeModal()" 
                                 class="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition">Cancel</button>
@@ -458,15 +516,18 @@
             </div>
         </div>
 
+        <!-- Day summary modal -->
         <div x-show="showSummary" class="modal-backdrop" @click.self="showSummary = false">
             <div class="summary-modal summary-enter">
                 <h3 class="text-2xl font-bold mb-6 text-center">Day Complete! 🌙</h3>
                 
+                <!-- Completion percentage -->
                 <div class="text-center mb-8">
                     <div class="text-4xl font-bold text-blue-600 mb-2" x-text="progressPercent + '%'"></div>
                     <p class="text-gray-600" x-text="`${completedCount} of ${habits.length} habits completed`"></p>
                 </div>
 
+                <!-- Comparison stats -->
                 <div x-show="summaryStats" class="space-y-4 mb-8">
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <div class="text-sm text-gray-600">vs Yesterday</div>
@@ -482,6 +543,7 @@
                     </div>
                 </div>
 
+                <!-- Complete day button -->
                 <button @click="goToSleep()" 
                         class="w-full bg-indigo-600 text-white py-4 rounded-lg hover:bg-indigo-700 transition text-lg font-semibold">
                     Complete Day

@@ -1,13 +1,18 @@
+// Extend dayjs with custom parsing and duration plugins
 dayjs.extend(window.dayjs_plugin_customParseFormat);
 dayjs.extend(window.dayjs_plugin_duration);
 
+// Initialize Alpine.js data store
 document.addEventListener('alpine:init', () => {
     Alpine.data('habitTracker', () => ({
+        // Core data
         habits: [],
         currentDate: TimeUtils.getDateKey(),
         currentWakeDayKey: null,
         isAwake: false,
         wakeUpTime: '',
+        
+        // UI state
         showModal: false,
         showAnalytics: false,
         showSummary: false,
@@ -16,6 +21,7 @@ document.addEventListener('alpine:init', () => {
         sortableInstance: null,
         lastActiveInput: 'main',
         
+        // Drag state
         isDragging: false,
         dragPosition: 0,
         dragTimeDisplay: '',
@@ -23,6 +29,7 @@ document.addEventListener('alpine:init', () => {
         dragStartY: 0,
         touchStartTime: 0,
         
+        // Form state
         editingHabit: null,
         form: {
             title: '',
@@ -36,6 +43,7 @@ document.addEventListener('alpine:init', () => {
         },
         tagInput: '',
         
+        // Analytics state
         streak: 0,
         weeklyRate: 0,
         dailyStats: {
@@ -46,6 +54,7 @@ document.addEventListener('alpine:init', () => {
         },
         summaryStats: { vsYesterday: 0, vsWeek: 0 },
         
+        // Timeline state
         timeSlots: [],
         currentTimePosition: 0,
         timelineHeight: 800,
@@ -53,10 +62,12 @@ document.addEventListener('alpine:init', () => {
         scrollTop: 0,
         visibleRange: { start: 0, end: 0 },
         
+        // Timers and observers
         updateTimer: null,
         resizeObserver: null,
         hammerInstance: null,
         
+        // Get default daily stats structure
         getDefaultDailyStats() {
             return {
                 today: { completed: 0, total: 0, rate: 0 },
@@ -66,6 +77,7 @@ document.addEventListener('alpine:init', () => {
             };
         },
         
+        // Get default form structure
         getDefaultForm() {
             return {
                 title: '',
@@ -79,14 +91,17 @@ document.addEventListener('alpine:init', () => {
             };
         },
         
+        // Count completed habits
         get completedCount() {
             return this.habits?.filter(h => h?.completed)?.length || 0;
         },
         
+        // Calculate completion percentage
         get progressPercent() {
             return this.habits?.length ? Math.round((this.completedCount / this.habits.length) * 100) : 0;
         },
         
+        // Get unique tags from all habits
         get availableTags() {
             if (!this.habits || !Array.isArray(this.habits)) return [];
             const tags = new Set();
@@ -98,6 +113,7 @@ document.addEventListener('alpine:init', () => {
             return Array.from(tags).sort();
         },
         
+        // Filter habits by selected tags
         get filteredHabits() {
             if (!this.habits || !Array.isArray(this.habits)) return [];
             if (!this.selectedTags?.length) return this.habits;
@@ -107,15 +123,17 @@ document.addEventListener('alpine:init', () => {
             );
         },
         
+        // Get time slots (for compatibility)
         get visibleTimeSlots() {
             return this.timeSlots || [];
         },
         
+        // Get habits visible in current viewport
         get visibleHabits() {
             const habitsToShow = this.selectedTags.length > 0 ? this.filteredHabits : this.habits;
             if (!habitsToShow.length) return [];
             
-            const buffer = 100;
+            const buffer = 100; // Render habits slightly outside viewport
             return habitsToShow.filter(habit => 
                 !habit.hidden &&
                 habit.position >= this.visibleRange.start - buffer && 
@@ -123,10 +141,12 @@ document.addEventListener('alpine:init', () => {
             );
         },
 
+        // Get current time as HH:MM
         getCurrentTime() {
             return TimeUtils.getCurrentTime();
         },
 
+        // Get formatted time since wake up
         getTimeAgo() {
             const wakeTime = dayjs(this.wakeUpTime, 'HH:mm');
             const now = dayjs();
@@ -142,11 +162,13 @@ document.addEventListener('alpine:init', () => {
             return hours > 0 ? `${hours}h ${mins}m ago` : `${mins}m ago`;
         },
 
+        // Calculate time from Y position on timeline
         calculateTimeFromPosition(position) {
             const timeline = TimelineCalculator.positionToTime(position, this.timeSlots, this.wakeUpTime);
             return timeline.timeStr;
         },
 
+        // Handle touch drag start
         handleTouchStart(event) {
             if (event.target.closest('.drag-handle')) {
                 const habitId = event.target.closest('.drag-handle').dataset.habitId;
@@ -155,6 +177,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Handle touch drag move
         handleTouchMove(event) {
             if (this.isDragging) {
                 event.preventDefault();
@@ -162,12 +185,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Handle touch drag end
         handleTouchEnd(event) {
             if (this.isDragging) {
                 this.handleDragEnd();
             }
         },
 
+        // Handle mouse drag start
         handleMouseDown(event) {
             if (event.target.closest('.drag-handle')) {
                 const habitId = event.target.closest('.drag-handle').dataset.habitId;
@@ -175,18 +200,21 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Handle mouse drag move
         handleMouseMove(event) {
             if (this.isDragging) {
                 this.handleDragMove(event.clientY);
             }
         },
 
+        // Handle mouse drag end
         handleMouseUp(event) {
             if (this.isDragging) {
                 this.handleDragEnd();
             }
         },
 
+        // Start dragging a habit
         handleDragStart(habitId, clientY) {
             this.isDragging = true;
             this.draggingHabitId = habitId;
@@ -199,6 +227,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Update position during drag
         handleDragMove(clientY) {
             if (!this.isDragging) return;
             
@@ -209,11 +238,13 @@ document.addEventListener('alpine:init', () => {
             
             this.dragPosition = Math.max(0, Math.min(this.timelineHeight, relativeY));
             
+            // Update time display during drag
             const time = this.calculateTimeFromPosition(this.dragPosition);
             if (time) {
                 this.dragTimeDisplay = TimeUtils.formatTime(time, true);
             }
             
+            // Auto-scroll when dragging near edges
             if (clientY < 100) {
                 window.scrollBy(0, -10);
             } else if (clientY > window.innerHeight - 100) {
@@ -221,6 +252,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Complete drag operation
         handleDragEnd() {
             if (!this.isDragging || !this.draggingHabitId) return;
             
@@ -229,11 +261,13 @@ document.addEventListener('alpine:init', () => {
             if (rawTime) {
                 const habit = this.habits.find(h => h.id === this.draggingHabitId);
                 if (habit) {
+                    // Calculate and clamp minutes since wake
                     let minutesSinceWake = TimeUtils.getMinutesSinceWake(rawTime, this.wakeUpTime);
                     minutesSinceWake = Math.max(1, Math.min(1439, minutesSinceWake));
                     
                     const clampedTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
                     
+                    // Update habit time based on type
                     if (habit.isDynamic) {
                         habit.offsetMinutes = minutesSinceWake;
                         habit.effectiveTime = clampedTime;
@@ -249,6 +283,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }
             
+            // Reset drag state
             document.body.classList.remove('dragging');
             this.isDragging = false;
             this.dragPosition = 0;
@@ -256,10 +291,12 @@ document.addEventListener('alpine:init', () => {
             this.draggingHabitId = null;
         },
 
+        // Handle viewport scroll for virtualization
         handleViewportScroll() {
             this.updateVisibleRange();
         },
 
+        // Update visible range for virtualization
         updateVisibleRange() {
             const timeline = this.$refs.timeline;
             if (!timeline) return;
@@ -277,6 +314,7 @@ document.addEventListener('alpine:init', () => {
             };
         },
 
+        // Initialize the app
         async init() {
             try {
                 this.resetModalStates();
@@ -291,6 +329,7 @@ document.addEventListener('alpine:init', () => {
                 this.setupWatchers();
                 this.setupTimers();
                 
+                // Set up DOM-dependent features after render
                 this.$nextTick(() => {
                     this.setupResponsiveHandlers();
                     this.setupDragDrop();
@@ -309,6 +348,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Reset all modal states
         resetModalStates() {
             this.showModal = false;
             this.showAnalytics = false;
@@ -316,7 +356,9 @@ document.addEventListener('alpine:init', () => {
             this.showMarkdownHelp = false;
         },
 
+        // Set up Alpine watchers
         setupWatchers() {
+            // Update timeline when tags change
             this.$watch('selectedTags', () => {
                 if (this.isAwake) {
                     this.$nextTick(() => {
@@ -326,6 +368,7 @@ document.addEventListener('alpine:init', () => {
                 }
             }, { deep: true });
             
+            // Update timeline when wake state changes
             this.$watch('isAwake', () => {
                 if (this.isAwake) {
                     this.$nextTick(() => {
@@ -336,6 +379,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        // Set up interval timers
         setupTimers() {
             this.updateTimer = setInterval(() => {
                 // Check if current wake day has expired (24 hours passed)
@@ -351,12 +395,14 @@ document.addEventListener('alpine:init', () => {
                 this.updateHighlighting();
                 this.updateCurrentTimePosition();
                 
+                // Update wake time display when not awake
                 if (!this.isAwake) {
                     this.wakeUpTime = this.getCurrentTime();
                 }
-            }, 60000);
+            }, 60000); // Run every minute
         },
 
+        // Load saved data
         async loadData() {
             try {
                 const data = await Storage.load();
@@ -429,6 +475,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Calculate effective time for dynamic habits
         calculateEffectiveTime(habit) {
             if (habit.isDynamic) {
                 return TimeUtils.addMinutesToTime(this.wakeUpTime, habit.offsetMinutes || 0);
@@ -436,6 +483,7 @@ document.addEventListener('alpine:init', () => {
             return habit.effectiveTime || habit.time;
         },
 
+        // Save current data
         async saveData() {
             try {
                 console.log('saveData called');
@@ -490,6 +538,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Calculate current completion stats
         calculateCurrentStats() {
             const total = this.habits.length;
             const completed = this.completedCount;
@@ -501,6 +550,7 @@ document.addEventListener('alpine:init', () => {
             };
         },
 
+        // Auto-complete expired day
         async autoCompleteCurrentDay() {
             if (!this.currentWakeDayKey) return;
             
@@ -529,12 +579,14 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Rebuild timeline after changes
         rebuildTimeline() {
             this.$nextTick(() => {
                 this.updateTimeline();
             });
         },
 
+        // Update timeline positions and markers
         updateTimeline() {
             try {
                 if (!this.isAwake) {
@@ -549,6 +601,7 @@ document.addEventListener('alpine:init', () => {
                 this.timeSlots = [...timeline.slots];
                 this.timelineHeight = timeline.height;
                 
+                // Update habit positions and visibility
                 this.habits.forEach(habit => {
                     const isVisible = this.selectedTags.length === 0 || 
                                     (habit.tags && habit.tags.some(tag => this.selectedTags.includes(tag)));
@@ -563,12 +616,13 @@ document.addEventListener('alpine:init', () => {
                         habit.hidden = false;
                     } else {
                         habit.hidden = true;
-                        habit.position = -1000;
+                        habit.position = -1000; // Move off-screen
                     }
                 });
                 
                 this.updateCurrentTimePosition();
                 
+                // Re-setup drag and drop after timeline update
                 this.$nextTick(() => {
                     this.setupDragDrop();
                     this.updateVisibleRange();
@@ -580,6 +634,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Update current time indicator position
         updateCurrentTimePosition() {
             try {
                 const position = TimelineCalculator.timeToPosition(
@@ -594,6 +649,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Scroll to current time on timeline
         scrollToCurrentTime() {
             const timeline = this.$refs.timeline;
             if (!timeline) return;
@@ -609,13 +665,16 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        // Toggle habit completion
         toggleCompletion(habit) {
             if (!habit) return;
             
             habit.completed = !habit.completed;
+            // Complete all sub-habits when main habit is completed
             if (habit.completed && habit.subHabits) {
                 habit.subHabits.forEach(sub => sub.completed = true);
                 
+                // Add celebration animation
                 const element = document.querySelector(`[data-habit-id="${habit.id}"]`);
                 if (element) {
                     element.classList.add('completion-celebration');
@@ -626,6 +685,7 @@ document.addEventListener('alpine:init', () => {
             this.updateAfterChange();
         },
 
+        // Toggle sub-habit completion
         toggleSubHabit(habit, subHabit) {
             if (!habit || !subHabit) return;
             
@@ -633,6 +693,7 @@ document.addEventListener('alpine:init', () => {
             this.updateAfterChange();
         },
 		
+        // Toggle habit expanded state
         toggleExpanded(habit) {
             if (!habit) return;
             
@@ -648,6 +709,7 @@ document.addEventListener('alpine:init', () => {
             habit.expanded = !habit.expanded;
         },
 
+        // Open edit modal for habit
         editHabit(habit) {
             if (!habit) return;
             
@@ -655,10 +717,12 @@ document.addEventListener('alpine:init', () => {
             this.showModal = false;
             
             this.$nextTick(() => {
+                // Update effective time for dynamic habits
                 if (habit.isDynamic) {
                     habit.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, habit.offsetMinutes || 0);
                 }
                 
+                // Load habit data into form
                 this.editingHabit = habit;
                 this.form = {
                     title: habit.title || '',
@@ -681,6 +745,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        // Delete habit with confirmation
         deleteHabit(habit) {
             if (!habit) return;
             
@@ -690,6 +755,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Save new or edited habit
         saveHabit() {
             if (!this.form.title?.trim()) return;
             
@@ -697,6 +763,7 @@ document.addEventListener('alpine:init', () => {
                 const habitData = this.createHabitData();
                 
                 if (this.editingHabit) {
+                    // Update existing habit
                     const index = this.habits.findIndex(h => h.id === this.editingHabit.id);
                     if (index >= 0) {
                         // Preserve completed status for the habit
@@ -715,6 +782,7 @@ document.addEventListener('alpine:init', () => {
                         this.habits[index] = { ...this.habits[index], ...habitData };
                     }
                 } else {
+                    // Add new habit
                     this.habits.push(habitData);
                 }
                 
@@ -726,6 +794,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Create habit data from form
         createHabitData() {
             const habitData = {
                 id: this.editingHabit?.id || Utils.generateId(),
@@ -741,6 +810,7 @@ document.addEventListener('alpine:init', () => {
                 expanded: false
             };
             
+            // Calculate effective time based on habit type
             if (habitData.isDynamic) {
                 habitData.offsetMinutes = Math.max(1, Math.min(1439, habitData.offsetMinutes));
                 habitData.effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, habitData.offsetMinutes);
@@ -754,6 +824,7 @@ document.addEventListener('alpine:init', () => {
             return habitData;
         },
 
+        // Process sub-habits from form
         processSubHabits() {
             if (!Array.isArray(this.form.subHabits)) return [];
             
@@ -765,6 +836,7 @@ document.addEventListener('alpine:init', () => {
             }));
         },
 
+        // Update app after data changes
         updateAfterChange() {
             this.sortByTime();
             this.updateHighlighting();
@@ -775,6 +847,7 @@ document.addEventListener('alpine:init', () => {
             });
         },
 
+        // Update habit highlighting based on current time
         updateHighlighting() {
             try {
                 const currentMinutesSinceWake = TimeUtils.getMinutesSinceWake(this.getCurrentTime(), this.wakeUpTime);
@@ -787,19 +860,24 @@ document.addEventListener('alpine:init', () => {
                     const minutesSinceWake = TimeUtils.getMinutesSinceWake(habit.effectiveTime, this.wakeUpTime);
                     const warningMinutes = Math.max(10, habit.duration || 30);
                     
+                    // Set overdue and current flags
                     habit.isOverdue = !habit.completed && currentMinutesSinceWake > minutesSinceWake;
                     habit.isCurrent = false;
                     
+                    // Calculate background color based on time status
                     if (!habit.completed) {
                         if (currentMinutesSinceWake > minutesSinceWake) {
+                            // Overdue - red background
                             habit.bgColor = 'rgb(254, 226, 226)';
                         } else if (currentMinutesSinceWake >= minutesSinceWake - warningMinutes) {
+                            // Warning period - gradual yellow to red
                             const progress = (currentMinutesSinceWake - (minutesSinceWake - warningMinutes)) / warningMinutes;
                             const red = Math.round(220 + (254 - 220) * progress);
                             const green = Math.round(252 - (252 - 226) * progress);
                             const blue = Math.round(231 - (231 - 226) * progress);
                             habit.bgColor = `rgb(${red}, ${green}, ${blue})`;
                         } else {
+                            // Future - white background
                             habit.bgColor = 'rgb(255, 255, 255)';
                             const diff = minutesSinceWake - currentMinutesSinceWake;
                             if (diff < minDiff) {
@@ -808,10 +886,12 @@ document.addEventListener('alpine:init', () => {
                             }
                         }
                     } else {
+                        // Completed - green background
                         habit.bgColor = 'rgb(220, 252, 231)';
                     }
                 });
                 
+                // Mark next upcoming habit as current
                 if (nextHabit) {
                     nextHabit.isCurrent = true;
                     nextHabit.bgColor = 'rgb(220, 252, 231)';
@@ -821,15 +901,18 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Set up drag and drop functionality
         setupDragDrop() {
             try {
                 const container = document.getElementById('habits-container');
                 if (!container || typeof Sortable === 'undefined') return;
                 
+                // Destroy existing instance
                 if (this.sortableInstance) {
                     this.sortableInstance.destroy();
                 }
                 
+                // Create new Sortable instance (disabled - using custom drag)
                 this.sortableInstance = Sortable.create(container, {
                     handle: '.drag-handle',
                     animation: 0,
@@ -841,7 +924,9 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Set up responsive and touch handlers
         setupResponsiveHandlers() {
+            // Set up resize observer
             if (this.resizeObserver) {
                 this.resizeObserver.disconnect();
             }
@@ -855,6 +940,7 @@ document.addEventListener('alpine:init', () => {
                 this.resizeObserver.observe(timeline);
             }
             
+            // Set up touch gestures with Hammer.js
             if (this.hammerInstance) {
                 this.hammerInstance.destroy();
             }
@@ -863,6 +949,7 @@ document.addEventListener('alpine:init', () => {
                 this.hammerInstance = new Hammer(timeline);
                 this.hammerInstance.get('pan').set({ direction: Hammer.DIRECTION_VERTICAL });
                 
+                // Handle pan start
                 this.hammerInstance.on('panstart', (ev) => {
                     if (ev.target.closest('.drag-handle')) {
                         const habitId = ev.target.closest('.drag-handle').dataset.habitId;
@@ -870,12 +957,14 @@ document.addEventListener('alpine:init', () => {
                     }
                 });
                 
+                // Handle pan move
                 this.hammerInstance.on('panmove', (ev) => {
                     if (this.isDragging) {
                         this.handleDragMove(ev.center.y);
                     }
                 });
                 
+                // Handle pan end
                 this.hammerInstance.on('panend', () => {
                     if (this.isDragging) {
                         this.handleDragEnd();
@@ -884,6 +973,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Close modal and reset form
         closeModal() {
             this.showModal = false;
             this.showMarkdownHelp = false;
@@ -893,6 +983,7 @@ document.addEventListener('alpine:init', () => {
             this.lastActiveInput = 'main';
         },
 
+        // Add tag from input
         addTag() {
             const tag = this.tagInput?.trim()?.toLowerCase();
             if (tag && !this.form.tags.includes(tag)) {
@@ -901,6 +992,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Toggle tag filter
         toggleTagFilter(tag) {
             if (!this.selectedTags) this.selectedTags = [];
             const index = this.selectedTags.indexOf(tag);
@@ -911,15 +1003,18 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Clear all tag filters
         clearTagFilters() {
             this.selectedTags = [];
         },
 
+        // Add new sub-habit to form
         addSubHabit() {
             if (!this.form.subHabits) this.form.subHabits = [];
             this.form.subHabits.push({ id: Utils.generateId(), title: '', description: '', completed: false });
         },
 
+        // Start new day when waking up
         async wakeUp() {
             this.isAwake = true;
             this.wakeUpTime = this.getCurrentTime();
@@ -943,6 +1038,7 @@ document.addEventListener('alpine:init', () => {
                     });
                 
                 if (sortedDays.length > 0) {
+                    // Copy habits but reset completion status
                     templateHabits = sortedDays[0].day.habits.map(habit => ({
                         ...habit,
                         completed: false,
@@ -979,11 +1075,13 @@ document.addEventListener('alpine:init', () => {
             Notifications.scheduleAllHabits(this.habits, this.wakeUpTime);
         },
 
+        // Show end of day summary
         endDay() {
             this.calculateSummaryStats();
             this.showSummary = true;
         },
 
+        // Complete day and go to sleep
         async goToSleep() {
             console.log("goToSleep called");
             if (!this.currentWakeDayKey) {
@@ -1065,11 +1163,12 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Deprecated method
         async saveHistory() {
-            // Deprecated - history is now part of days structure
             console.log('saveHistory called but deprecated');
         },
 
+        // Calculate analytics data
         calculateAnalytics() {
             try {
                 this.$nextTick(async () => {
@@ -1083,6 +1182,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Calculate summary statistics vs previous days
         calculateSummaryStats() {
             try {
                 if (this.dailyStats) {
@@ -1097,6 +1197,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Sort habits by time
         sortByTime() {
             try {
                 this.habits.sort((a, b) => {
@@ -1109,10 +1210,12 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
+        // Format time for display
         formatTime(timeStr) {
             return TimeUtils.formatTime(timeStr, true);
         },
 
+        // Parse markdown text to HTML
         parseMarkdown(text) {
             if (!text || typeof window.markdownit === 'undefined') return text || '';
             
@@ -1126,6 +1229,7 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        // Initialize markdown parser with custom rules
         initializeMarkdownParser() {
             const md = window.markdownit({
                 html: true,
@@ -1134,11 +1238,13 @@ document.addEventListener('alpine:init', () => {
                 typographer: true
             });
             
+            // Custom image renderer
             md.renderer.rules.image = this.createImageRenderer();
             
             return md;
         },
         
+        // Create custom image renderer for markdown
         createImageRenderer() {
             return function(tokens, idx, options, env, self) {
                 const token = tokens[idx];
@@ -1152,6 +1258,7 @@ document.addEventListener('alpine:init', () => {
                 const alt = altIndex >= 0 ? token.attrs[altIndex][1] : '';
                 const title = titleIndex >= 0 ? token.attrs[titleIndex][1] : '';
                 
+                // Wrap images in clickable links
                 return `<a href="${src}" target="_blank" rel="noopener noreferrer" class="inline-block markdown-image-link">
                           <img src="${src}" alt="${alt}" title="${title}" 
                                class="max-w-full h-auto rounded-md cursor-pointer hover:opacity-90 transition-opacity markdown-image" 
@@ -1160,6 +1267,7 @@ document.addEventListener('alpine:init', () => {
             };
         },
         
+        // Process markdown for video embeds
         preprocessMarkdown(text) {
             const videoRegex = /!video\[(.*?)\]\((.*?)\)/g;
             
@@ -1180,24 +1288,28 @@ document.addEventListener('alpine:init', () => {
             });
         },
         
+        // Extract YouTube video ID from URL
         getYoutubeId(url) {
             const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
             const match = url.match(regExp);
             return (match && match[2].length === 11) ? match[2] : null;
         },
         
+        // Extract Vimeo video ID from URL
         getVimeoId(url) {
             const regExp = /^.*(vimeo\.com\/)((channels\/[A-z]+\/)|(groups\/[A-z]+\/videos\/))?([0-9]+)/;
             const match = url.match(regExp);
             return (match && match[5]) ? match[5] : null;
         },
         
+        // Extract Imgur video ID from URL
         getImgurId(url) {
             const regExp = /^.*imgur\.com\/([a-zA-Z0-9]+)\.(mp4|webm)$/;
             const match = url.match(regExp);
             return match ? match[1] : null;
         },
         
+        // Create YouTube embed HTML
         createYouTubeEmbed(videoId) {
             return `<div class="video-embed youtube-embed">
                       <iframe width="100%" height="315" 
@@ -1208,6 +1320,7 @@ document.addEventListener('alpine:init', () => {
                     </div>`;
         },
         
+        // Create Vimeo embed HTML
         createVimeoEmbed(videoId) {
             return `<div class="video-embed vimeo-embed">
                       <iframe width="100%" height="315" 
@@ -1218,6 +1331,7 @@ document.addEventListener('alpine:init', () => {
                     </div>`;
         },
         
+        // Create Imgur video embed HTML
         createImgurVideoEmbed(url) {
             return `<div class="video-embed imgur-embed">
                       <video width="100%" height="auto" controls loop muted preload="metadata">
@@ -1227,6 +1341,7 @@ document.addEventListener('alpine:init', () => {
                     </div>`;
         },
         
+        // Create generic video embed HTML
         createGenericVideoEmbed(url) {
             if (url.match(/\.(mp4|webm|ogg)$/i)) {
                 return `<div class="video-embed generic-embed">
@@ -1239,12 +1354,14 @@ document.addEventListener('alpine:init', () => {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="text-blue-600 hover:text-blue-800 underline">${url}</a>`;
         },
         
+        // Clear all data with double confirmation
         clearAllData() {
             if (confirm('Are you sure you want to delete ALL data? This cannot be undone!')) {
                 if (confirm('Really sure? All habits, history, and settings will be permanently deleted.')) {
                     try {
                         localStorage.clear();
                         
+                        // Reset all state
                         this.habits = [];
                         this.selectedTags = [];
                         this.isAwake = false;
@@ -1266,9 +1383,11 @@ document.addEventListener('alpine:init', () => {
             }
         },
         
+        // Insert markdown formatting at cursor position
         insertMarkdown(before, after) {
             let targetInput;
             
+            // Determine which input was last active
             if (this.lastActiveInput === 'main') {
                 targetInput = this.$refs.mainDescription;
             } else if (this.lastActiveInput.startsWith('sub')) {
@@ -1286,6 +1405,7 @@ document.addEventListener('alpine:init', () => {
             let cursorOffset = before.length;
             let insertText = before + selectedText + after;
             
+            // Handle special cases for cursor positioning
             if (before === '**' && after === '**') {
                 if (!selectedText) {
                     cursorOffset = before.length;
@@ -1306,6 +1426,7 @@ document.addEventListener('alpine:init', () => {
             
             const newText = text.substring(0, start) + insertText + text.substring(end);
             
+            // Update the appropriate model
             if (this.lastActiveInput === 'main') {
                 this.form.description = newText;
             } else if (this.lastActiveInput.startsWith('sub')) {
@@ -1313,6 +1434,7 @@ document.addEventListener('alpine:init', () => {
                 this.form.subHabits[index].description = newText;
             }
             
+            // Restore focus and cursor position
             this.$nextTick(() => {
                 targetInput.focus();
                 const newCursorPos = start + cursorOffset;

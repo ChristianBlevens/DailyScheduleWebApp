@@ -5,6 +5,7 @@ document.addEventListener('alpine:init', () => {
     Alpine.data('habitTracker', () => ({
         habits: [],
         currentDate: TimeUtils.getDateKey(),
+        currentWakeDayKey: null,
         isAwake: false,
         wakeUpTime: '',
         showModal: false,
@@ -337,13 +338,16 @@ document.addEventListener('alpine:init', () => {
 
         setupTimers() {
             this.updateTimer = setInterval(() => {
-                const newDate = TimeUtils.getDateKey();
-                if (newDate !== this.currentDate) {
-                    this.currentDate = newDate;
-                    this.isAwake = false;
-                    this.wakeUpTime = this.getCurrentTime();
-                    this.loadData();
+                // Check if current wake day has expired (24 hours passed)
+                if (this.currentWakeDayKey && this.isAwake) {
+                    if (TimeUtils.isWakeDayExpired(this.currentWakeDayKey)) {
+                        // Auto-complete only during background/inactive usage
+                        if (document.hidden || !document.hasFocus()) {
+                            this.autoCompleteCurrentDay();
+                        }
+                    }
                 }
+                
                 this.updateHighlighting();
                 this.updateCurrentTimePosition();
                 
@@ -356,23 +360,64 @@ document.addEventListener('alpine:init', () => {
         async loadData() {
             try {
                 const data = await Storage.load();
-                const today = this.currentDate;
                 
-                this.isAwake = data.awake?.[today] === true;
-                this.wakeUpTime = data.wakeUpTimes?.[today] || this.getCurrentTime();
+                if (!data.days || Object.keys(data.days).length === 0) {
+                    // No days exist, show not awake screen
+                    this.isAwake = false;
+                    this.currentWakeDayKey = null;
+                    this.habits = [];
+                    return;
+                }
                 
-                this.habits = (data.templates || []).map(template => {
-                    const habitData = this.processHabitTemplate(template);
-                    return {
-                        ...habitData,
-                        completed: data.completions?.[today]?.includes(template.id) || false,
-                        expanded: false,
-                        subHabits: (habitData.subHabits || []).map(sub => ({
-                            ...sub,
-                            completed: data.subCompletions?.[today]?.includes(sub.id) || false
-                        }))
-                    };
+                // Auto-complete expired days (only on startup)
+                const updatedDays = TimeUtils.completeExpiredDays(data.days, async (days) => {
+                    data.days = days;
+                    await Storage.save(data);
                 });
+                data.days = updatedDays;
+                
+                // Find most recent uncompleted day
+                const mostRecent = TimeUtils.getMostRecentUncompletedWakeDay(data.days);
+                
+                if (!mostRecent) {
+                    // All days are completed
+                    this.isAwake = false;
+                    this.currentWakeDayKey = null;
+                    this.habits = [];
+                    return;
+                }
+                
+                // Check if the most recent uncompleted day is expired
+                if (TimeUtils.isWakeDayExpired(mostRecent.key)) {
+                    // Auto-complete it
+                    data.days[mostRecent.key] = {
+                        ...mostRecent.day,
+                        isCompleted: true,
+                        completedAt: new Date().toISOString(),
+                        autoCompleted: true
+                    };
+                    await Storage.save(data);
+                    
+                    this.isAwake = false;
+                    this.currentWakeDayKey = null;
+                    this.habits = [];
+                    return;
+                }
+                
+                // Load the most recent uncompleted day
+                this.currentWakeDayKey = mostRecent.key;
+                const currentDay = mostRecent.day;
+                
+                this.isAwake = true;
+                this.wakeUpTime = currentDay.wakeTime;
+                this.currentDate = currentDay.date;
+                
+                // Load habits with their completion status
+                this.habits = currentDay.habits.map(habit => ({
+                    ...habit,
+                    expanded: false,
+                    effectiveTime: this.calculateEffectiveTime(habit)
+                }));
                 
                 this.sortByTime();
                 this.updateTimeline();
@@ -380,84 +425,108 @@ document.addEventListener('alpine:init', () => {
                 console.error('Load data error:', error);
                 this.habits = [];
                 this.isAwake = false;
+                this.currentWakeDayKey = null;
             }
         },
 
-        processHabitTemplate(template) {
-            let effectiveTime;
-            let correctedTemplate = { ...template };
-            
-            if (template.isDynamic) {
-                const clampedOffset = Math.max(1, Math.min(1439, template.offsetMinutes || 1));
-                effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, clampedOffset);
-                
-                if (clampedOffset !== template.offsetMinutes) {
-                    correctedTemplate.offsetMinutes = clampedOffset;
-                }
-            } else {
-                let minutesSinceWake = TimeUtils.getMinutesSinceWake(template.time, this.wakeUpTime);
-                minutesSinceWake = Math.max(1, Math.min(1439, minutesSinceWake));
-                effectiveTime = TimeUtils.addMinutesToTime(this.wakeUpTime, minutesSinceWake);
-                
-                const originalMinutes = TimeUtils.getMinutesSinceWake(template.time, this.wakeUpTime);
-                if (originalMinutes !== minutesSinceWake) {
-                    correctedTemplate.time = effectiveTime;
-                }
+        calculateEffectiveTime(habit) {
+            if (habit.isDynamic) {
+                return TimeUtils.addMinutesToTime(this.wakeUpTime, habit.offsetMinutes || 0);
             }
-            
-            return {
-                ...correctedTemplate,
-                effectiveTime,
-                description: template.description || '',
-                subHabits: (template.subHabits || []).map(sub => ({
-                    ...sub,
-                    description: sub.description || ''
-                }))
-            };
+            return habit.effectiveTime || habit.time;
         },
 
         async saveData() {
             try {
+                console.log('saveData called');
                 const data = await Storage.load();
-                const today = this.currentDate;
                 
-                data.templates = this.habits.map(h => ({
-                    id: h.id,
-                    title: h.title,
-                    description: h.description,
-                    time: h.time,
-                    effectiveTime: h.effectiveTime,
-                    duration: h.duration,
-                    tags: h.tags || [],
-                    isDynamic: h.isDynamic || false,
-                    offsetMinutes: h.offsetMinutes || 0,
-                    subHabits: (h.subHabits || []).map(s => ({ 
-                        id: s.id, 
-                        title: s.title,
-                        description: s.description || ''
-                    }))
-                }));
+                if (!data.days) data.days = {};
                 
-                this.ensureDataStructure(data);
+                if (this.currentWakeDayKey && this.isAwake) {
+                    // Update current day data
+                    data.days[this.currentWakeDayKey] = {
+                        date: this.currentDate,
+                        wakeTime: this.wakeUpTime,
+                        isCompleted: false,
+                        habits: this.habits.map(h => ({
+                            id: h.id,
+                            title: h.title,
+                            description: h.description,
+                            time: h.time,
+                            effectiveTime: h.effectiveTime,
+                            duration: h.duration,
+                            tags: h.tags || [],
+                            isDynamic: h.isDynamic || false,
+                            offsetMinutes: h.offsetMinutes || 0,
+                            completed: h.completed,
+                            subHabits: (h.subHabits || []).map(s => ({ 
+                                id: s.id, 
+                                title: s.title,
+                                description: s.description || '',
+                                completed: s.completed
+                            }))
+                        })),
+                        stats: this.calculateCurrentStats(),
+                        completedAt: null
+                    };
+                    
+                    // Check data size
+                    const dataSize = JSON.stringify(data).length;
+                    console.log(`Data size: ${dataSize} bytes (${(dataSize / 1024 / 1024).toFixed(2)} MB)`);
+                    
+                    if (dataSize > 4 * 1024 * 1024) { // Warn if over 4MB
+                        console.warn('Data size is large and may approach localStorage limits');
+                    }
+                }
                 
-                data.completions[today] = this.habits.filter(h => h.completed).map(h => h.id);
-                data.subCompletions[today] = this.habits.flatMap(h => 
-                    (h.subHabits || []).filter(s => s.completed).map(s => s.id)
-                );
-                data.awake[today] = this.isAwake;
-                data.wakeUpTimes[today] = this.wakeUpTime;
-                
-                await Storage.save(data);
+                const saveResult = await Storage.save(data);
+                if (!saveResult) {
+                    console.error('saveData: Storage.save returned false');
+                }
             } catch (error) {
                 console.error('Save data error:', error);
+                console.error('Error stack:', error.stack);
             }
         },
 
-        ensureDataStructure(data) {
-            if (!data.completions) data.completions = {};
-            if (!data.subCompletions) data.subCompletions = {};
-            if (!data.awake) data.awake = {};
-            if (!data.wakeUpTimes) data.wakeUpTimes = {};
+        calculateCurrentStats() {
+            const total = this.habits.length;
+            const completed = this.completedCount;
+            
+            return {
+                total,
+                completed,
+                rate: total > 0 ? Math.round((completed / total) * 100) : 0
+            };
+        },
+
+        async autoCompleteCurrentDay() {
+            if (!this.currentWakeDayKey) return;
+            
+            try {
+                const data = await Storage.load();
+                
+                if (data.days && data.days[this.currentWakeDayKey]) {
+                    // Update stats before completing
+                    data.days[this.currentWakeDayKey].stats = this.calculateCurrentStats();
+                    
+                    // Mark as completed
+                    data.days[this.currentWakeDayKey].isCompleted = true;
+                    data.days[this.currentWakeDayKey].completedAt = new Date().toISOString();
+                    data.days[this.currentWakeDayKey].autoCompleted = true;
+                    
+                    await Storage.save(data);
+                }
+                
+                // Reset to not awake state
+                this.isAwake = false;
+                this.currentWakeDayKey = null;
+                this.habits = [];
+                this.wakeUpTime = this.getCurrentTime();
+            } catch (error) {
+                console.error('Auto-complete error:', error);
+            }
         },
 
         rebuildTimeline() {
@@ -563,6 +632,21 @@ document.addEventListener('alpine:init', () => {
             subHabit.completed = !subHabit.completed;
             this.updateAfterChange();
         },
+		
+        toggleExpanded(habit) {
+            if (!habit) return;
+            
+            // If this habit is being expanded, collapse all others first
+            if (!habit.expanded) {
+                this.habits.forEach(h => {
+                    if (h.id !== habit.id) {
+                        h.expanded = false;
+                    }
+                });
+            }
+            
+            habit.expanded = !habit.expanded;
+        },
 
         editHabit(habit) {
             if (!habit) return;
@@ -583,8 +667,10 @@ document.addEventListener('alpine:init', () => {
                     duration: habit.duration || 30,
                     tags: Array.isArray(habit.tags) ? [...habit.tags] : [],
                     subHabits: Array.isArray(habit.subHabits) ? habit.subHabits.map(s => ({ 
-                        ...s,
-                        description: s.description || '' 
+                        id: s.id,
+                        title: s.title,
+                        description: s.description || '',
+                        completed: s.completed
                     })) : [],
                     isDynamic: habit.isDynamic || false,
                     offsetMinutes: habit.offsetMinutes || 60
@@ -613,7 +699,19 @@ document.addEventListener('alpine:init', () => {
                 if (this.editingHabit) {
                     const index = this.habits.findIndex(h => h.id === this.editingHabit.id);
                     if (index >= 0) {
+                        // Preserve completed status for the habit
                         habitData.completed = this.habits[index].completed;
+                        
+                        // Preserve completed status for existing sub-habits
+                        const existingHabit = this.habits[index];
+                        habitData.subHabits = habitData.subHabits.map(subHabit => {
+                            const existingSub = existingHabit.subHabits?.find(s => s.id === subHabit.id);
+                            if (existingSub) {
+                                return { ...subHabit, completed: existingSub.completed };
+                            }
+                            return subHabit;
+                        });
+                        
                         this.habits[index] = { ...this.habits[index], ...habitData };
                     }
                 } else {
@@ -663,7 +761,7 @@ document.addEventListener('alpine:init', () => {
                 id: s.id || Utils.generateId(),
                 title: Utils.sanitize(s.title),
                 description: s.description || '',
-                completed: false
+                completed: s.completed || false
             }));
         },
 
@@ -825,10 +923,59 @@ document.addEventListener('alpine:init', () => {
         async wakeUp() {
             this.isAwake = true;
             this.wakeUpTime = this.getCurrentTime();
+            this.currentDate = TimeUtils.getDateKey();
             
-            await this.saveData();
-            await this.loadData();
+            // Create new wake day key
+            this.currentWakeDayKey = TimeUtils.getWakeDayKey(this.wakeUpTime, this.currentDate);
             
+            // Load data to get most recent day's habits as templates
+            const data = await Storage.load();
+            
+            // Find the most recent day (completed or not) to use as template
+            let templateHabits = [];
+            if (data.days && Object.keys(data.days).length > 0) {
+                const sortedDays = Object.entries(data.days)
+                    .map(([key, day]) => ({ key, day }))
+                    .sort((a, b) => {
+                        const dateA = new Date(`${a.day.date}T${a.day.wakeTime}:00`);
+                        const dateB = new Date(`${b.day.date}T${b.day.wakeTime}:00`);
+                        return dateB - dateA;
+                    });
+                
+                if (sortedDays.length > 0) {
+                    templateHabits = sortedDays[0].day.habits.map(habit => ({
+                        ...habit,
+                        completed: false,
+                        subHabits: (habit.subHabits || []).map(sub => ({
+                            ...sub,
+                            completed: false
+                        }))
+                    }));
+                }
+            }
+            
+            // Create new habits from templates
+            this.habits = templateHabits.map(template => ({
+                ...template,
+                effectiveTime: this.calculateEffectiveTime(template),
+                expanded: false
+            }));
+            
+            // Save new day
+            if (!data.days) data.days = {};
+            data.days[this.currentWakeDayKey] = {
+                date: this.currentDate,
+                wakeTime: this.wakeUpTime,
+                isCompleted: false,
+                habits: this.habits,
+                stats: this.calculateCurrentStats(),
+                completedAt: null
+            };
+            
+            await Storage.save(data);
+            
+            this.sortByTime();
+            this.updateTimeline();
             Notifications.scheduleAllHabits(this.habits, this.wakeUpTime);
         },
 
@@ -838,57 +985,98 @@ document.addEventListener('alpine:init', () => {
         },
 
         async goToSleep() {
-            this.isAwake = false;
-            this.showSummary = false;
+            console.log("goToSleep called");
+            if (!this.currentWakeDayKey) {
+                console.log("No currentWakeDayKey, returning");
+                return;
+            }
             
-            await this.saveHistory();
-            await this.saveData();
-        },
-
-        async saveHistory() {
             try {
-                const today = this.currentDate;
-                const historyData = {
-                    date: today,
-                    habits: this.habits.map(h => ({
+                console.log("Loading data...");
+                const data = await Storage.load();
+                console.log("Data loaded:", data);
+                
+                if (data.days && data.days[this.currentWakeDayKey]) {
+                    console.log("Updating day data for key:", this.currentWakeDayKey);
+                    
+                    // Update final stats
+                    data.days[this.currentWakeDayKey].stats = this.calculateCurrentStats();
+                    
+                    // Mark as completed
+                    data.days[this.currentWakeDayKey].isCompleted = true;
+                    data.days[this.currentWakeDayKey].completedAt = new Date().toISOString();
+                    
+                    // Save updated habits state
+                    data.days[this.currentWakeDayKey].habits = this.habits.map(h => ({
                         id: h.id,
                         title: h.title,
-                        completed: h.completed,
+                        description: h.description,
+                        time: h.time,
                         effectiveTime: h.effectiveTime,
                         duration: h.duration,
                         tags: h.tags || [],
                         isDynamic: h.isDynamic || false,
-                        subHabitsCompleted: (h.subHabits || []).filter(s => s.completed).length,
-                        subHabitsTotal: (h.subHabits || []).length
-                    })),
-                    stats: {
-                        completed: this.completedCount,
-                        total: this.habits.length,
-                        rate: this.progressPercent,
-                        wakeUpTime: this.wakeUpTime
-                    },
-                    dailyStats: this.dailyStats,
-                    timestamp: new Date().toISOString()
-                };
+                        offsetMinutes: h.offsetMinutes || 0,
+                        completed: h.completed,
+                        subHabits: (h.subHabits || []).map(s => ({ 
+                            id: s.id, 
+                            title: s.title,
+                            description: s.description || '',
+                            completed: s.completed
+                        }))
+                    }));
+                    
+                    console.log("Attempting to save data...");
+                    console.log("Data size:", JSON.stringify(data).length, "bytes");
+                    
+                    const saveResult = await Storage.save(data);
+                    console.log("Save result:", saveResult);
+                    
+                    if (!saveResult) {
+                        console.error("Storage.save returned false - save may have failed");
+                        // Try to save to localStorage directly as fallback
+                        try {
+                            localStorage.setItem('habitTracker', JSON.stringify({
+                                ...data,
+                                updatedAt: new Date().toISOString()
+                            }));
+                            console.log("Fallback localStorage save succeeded");
+                        } catch (fallbackError) {
+                            console.error("Fallback save also failed:", fallbackError);
+                            alert("Failed to save data. Your progress may not be saved.");
+                        }
+                    }
+                } else {
+                    console.log("No day data found for key:", this.currentWakeDayKey);
+                }
                 
-                await Storage.saveHistory(historyData);
-                
-                const data = await Storage.load();
-                if (!data.history) data.history = {};
-                data.history[today] = historyData;
-                await Storage.save(data);
+                console.log("Resetting state...");
+                // Reset state
+                this.isAwake = false;
+                this.showSummary = false;
+                this.currentWakeDayKey = null;
+                this.habits = [];
+                this.wakeUpTime = this.getCurrentTime();
+                console.log("goToSleep completed successfully");
             } catch (error) {
-                console.error('Save history error:', error);
+                console.error('Go to sleep error:', error);
+                console.error('Error stack:', error.stack);
+                alert("An error occurred while saving. Please check the console.");
             }
+        },
+
+        async saveHistory() {
+            // Deprecated - history is now part of days structure
+            console.log('saveHistory called but deprecated');
         },
 
         calculateAnalytics() {
             try {
                 this.$nextTick(async () => {
                     const data = await Storage.load();
-                    this.streak = Analytics.calculateStreak(data.completions || {}, this.habits.length);
-                    this.weeklyRate = Analytics.calculateWeeklyRate(data.completions || {}, this.habits.length);
-                    this.dailyStats = Analytics.calculateDailyStats(data, this.habits) || this.getDefaultDailyStats();
+                    this.streak = Analytics.calculateStreak(data.days || {});
+                    this.weeklyRate = Analytics.calculateWeeklyRate(data.days || {});
+                    this.dailyStats = Analytics.calculateDailyStats(data.days) || this.getDefaultDailyStats();
                 });
             } catch (error) {
                 console.error('Calculate analytics error:', error);
@@ -1062,6 +1250,7 @@ document.addEventListener('alpine:init', () => {
                         this.isAwake = false;
                         this.wakeUpTime = this.getCurrentTime();
                         this.currentDate = TimeUtils.getDateKey();
+                        this.currentWakeDayKey = null;
                         this.streak = 0;
                         this.weeklyRate = 0;
                         this.dailyStats = this.getDefaultDailyStats();

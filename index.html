@@ -32,14 +32,15 @@
             messagingSenderId: "123456789",
             appId: "demo-app"
         };
-        
-        try {
+        window.db = null;
+        /*try {
             window.firebaseApp = initializeApp(firebaseConfig);
             window.db = getFirestore(window.firebaseApp);
         } catch (error) {
             console.log('Firebase not configured, using localStorage');
             window.db = null;
         }
+		*/
     </script>
     
     <link rel="stylesheet" href="styles.css">
@@ -210,7 +211,7 @@
                                         </div>
                                         
                                         <div class="tile-actions">
-                                            <button @click="habit.expanded = !habit.expanded" class="action-button">
+                                            <button @click="toggleExpanded(habit)" class="action-button">
                                                 <i class="fas fa-chevron-down transition-transform" 
                                                    :class="{'rotate-180': habit.expanded}"></i>
                                             </button>
@@ -483,7 +484,7 @@
 
                 <button @click="goToSleep()" 
                         class="w-full bg-indigo-600 text-white py-4 rounded-lg hover:bg-indigo-700 transition text-lg font-semibold">
-                    Go to Sleep
+                    Complete Day
                 </button>
             </div>
         </div>

@@ -27,6 +27,104 @@ const TimeUtils = {
         return date.toISOString().split('T')[0];
     },
     
+    // New wake-based day functions
+    getWakeDayKey(wakeTime, wakeDate = new Date()) {
+        const dateStr = typeof wakeDate === 'string' ? wakeDate : this.getDateKey(wakeDate);
+        return `${dateStr}_${wakeTime}`;
+    },
+    
+    parseWakeDayKey(wakeDayKey) {
+        try {
+            if (!wakeDayKey || typeof wakeDayKey !== 'string') {
+                throw new Error('Invalid wake day key');
+            }
+            
+            const parts = wakeDayKey.split('_');
+            if (parts.length !== 2) {
+                throw new Error('Malformed wake day key');
+            }
+            
+            const [date, time] = parts;
+            
+            // Validate date format (YYYY-MM-DD)
+            if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+                throw new Error('Invalid date format in wake day key');
+            }
+            
+            // Validate time format (HH:MM)
+            if (!/^\d{2}:\d{2}$/.test(time)) {
+                throw new Error('Invalid time format in wake day key');
+            }
+            
+            return { date, wakeTime: time };
+        } catch (error) {
+            console.error('Error parsing wake day key:', error);
+            return null;
+        }
+    },
+    
+    isWakeDayExpired(wakeDayKey, hoursThreshold = 24) {
+        const parsed = this.parseWakeDayKey(wakeDayKey);
+        if (!parsed) return true;
+        
+        const { date, wakeTime } = parsed;
+        const wakeDateTime = new Date(`${date}T${wakeTime}:00`);
+        const now = new Date();
+        const hoursPassed = (now - wakeDateTime) / (1000 * 60 * 60);
+        
+        return hoursPassed >= hoursThreshold;
+    },
+    
+    getMostRecentUncompletedWakeDay(wakeDays) {
+        if (!wakeDays || typeof wakeDays !== 'object') return null;
+        
+        const uncompletedDays = Object.entries(wakeDays)
+            .filter(([key, day]) => day && day.isCompleted === false)
+            .map(([key, day]) => ({ key, day }));
+        
+        if (uncompletedDays.length === 0) return null;
+        
+        // Sort by wake time (most recent first)
+        uncompletedDays.sort((a, b) => {
+            const parsedA = this.parseWakeDayKey(a.key);
+            const parsedB = this.parseWakeDayKey(b.key);
+            
+            if (!parsedA || !parsedB) return 0;
+            
+            const dateA = new Date(`${parsedA.date}T${parsedA.wakeTime}:00`);
+            const dateB = new Date(`${parsedB.date}T${parsedB.wakeTime}:00`);
+            
+            return dateB - dateA;
+        });
+        
+        return uncompletedDays[0];
+    },
+    
+    completeExpiredDays(days, saveCallback) {
+        if (!days || typeof days !== 'object') return days;
+        
+        const updatedDays = { ...days };
+        let hasChanges = false;
+        
+        Object.entries(updatedDays).forEach(([key, day]) => {
+            if (day && !day.isCompleted && this.isWakeDayExpired(key)) {
+                updatedDays[key] = {
+                    ...day,
+                    isCompleted: true,
+                    completedAt: new Date().toISOString(),
+                    autoCompleted: true
+                };
+                hasChanges = true;
+            }
+        });
+        
+        if (hasChanges && saveCallback) {
+            saveCallback(updatedDays);
+        }
+        
+        return updatedDays;
+    },
+    
     addMinutesToTime(timeStr, minutesToAdd) {
         const baseMinutes = this.timeToMinutes(timeStr);
         return this.minutesToTime(baseMinutes + minutesToAdd);
@@ -407,6 +505,11 @@ const Storage = {
             const data = localStorage.getItem('habitTracker');
             const parsed = data ? JSON.parse(data) : this.getDefault();
             
+            // Migration logic for old data structure
+            if (parsed.templates && !parsed.days) {
+                parsed.days = this.migrateToWakeDays(parsed);
+            }
+            
             if (window.db) {
                 try {
                     const { doc, getDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
@@ -415,6 +518,12 @@ const Storage = {
                     
                     if (docSnap.exists()) {
                         const firebaseData = docSnap.data();
+                        
+                        // Migration for firebase data
+                        if (firebaseData.templates && !firebaseData.days) {
+                            firebaseData.days = this.migrateToWakeDays(firebaseData);
+                        }
+                        
                         if (firebaseData.updatedAt > parsed.updatedAt) {
                             localStorage.setItem('habitTracker', JSON.stringify(firebaseData));
                             return firebaseData;
@@ -434,16 +543,22 @@ const Storage = {
 
     async save(data) {
         try {
+            console.log('Storage.save called');
             const dataWithTimestamp = {
                 ...data,
                 updatedAt: new Date().toISOString()
             };
+            
+            console.log('Attempting localStorage.setItem...');
             localStorage.setItem('habitTracker', JSON.stringify(dataWithTimestamp));
+            console.log('localStorage.setItem succeeded');
             
             if (window.db) {
                 try {
+                    console.log('Attempting Firebase sync...');
                     const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
                     await setDoc(doc(window.db, 'users', this.getUserId()), dataWithTimestamp);
+                    console.log('Firebase sync succeeded');
                 } catch (error) {
                     console.log('Firebase sync failed, data saved locally:', error);
                 }
@@ -452,25 +567,25 @@ const Storage = {
             return true;
         } catch (error) {
             console.error('Save failed:', error);
+            console.error('Error details:', {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+            });
+            
+            // Check if it's a quota exceeded error
+            if (error.name === 'QuotaExceededError' || error.code === 22) {
+                console.error('localStorage quota exceeded!');
+                alert('Storage is full. Please clear some old data using the Clear All Data button.');
+            }
+            
             return false;
         }
     },
 
     async saveHistory(historyData) {
-        if (window.db) {
-            try {
-                const { doc, setDoc } = await import('https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js');
-                const historyRef = doc(window.db, 'history', this.getUserId() + '_' + TimeUtils.getDateKey());
-                await setDoc(historyRef, {
-                    ...historyData,
-                    userId: this.getUserId(),
-                    savedAt: new Date().toISOString()
-                });
-                console.log('History saved to Firebase');
-            } catch (error) {
-                console.log('Firebase history save error:', error);
-            }
-        }
+        // Deprecated - history is now part of days structure
+        console.log('saveHistory called but deprecated - data is now in days structure');
     },
 
     getUserId() {
@@ -484,32 +599,91 @@ const Storage = {
 
     getDefault() {
         return {
-            templates: [],
-            completions: {},
-            subCompletions: {},
-            awake: {},
-            wakeUpTimes: {},
-            history: {},
+            days: {},
             settings: { theme: 'light', notifications: true }
+        };
+    },
+    
+    migrateToWakeDays(oldData) {
+        const days = {};
+        
+        // Get all dates that have data
+        const allDates = new Set();
+        if (oldData.completions) {
+            Object.keys(oldData.completions).forEach(date => allDates.add(date));
+        }
+        if (oldData.awake) {
+            Object.keys(oldData.awake).forEach(date => allDates.add(date));
+        }
+        
+        // Convert each date to wake day format
+        allDates.forEach(date => {
+            const wakeTime = oldData.wakeUpTimes?.[date] || '06:00';
+            const wakeDayKey = TimeUtils.getWakeDayKey(wakeTime, date);
+            
+            // Create habits array from templates with completion status
+            const habits = (oldData.templates || []).map(template => {
+                const habitData = {
+                    ...template,
+                    completed: oldData.completions?.[date]?.includes(template.id) || false,
+                    subHabits: (template.subHabits || []).map(sub => ({
+                        ...sub,
+                        completed: oldData.subCompletions?.[date]?.includes(sub.id) || false
+                    }))
+                };
+                return habitData;
+            });
+            
+            days[wakeDayKey] = {
+                date,
+                wakeTime,
+                isCompleted: !oldData.awake?.[date], // If not awake, day is completed
+                habits,
+                stats: this.calculateDayStats(habits),
+                completedAt: oldData.awake?.[date] ? null : new Date(date).toISOString()
+            };
+        });
+        
+        return days;
+    },
+    
+    calculateDayStats(habits) {
+        const total = habits.length;
+        const completed = habits.filter(h => h.completed).length;
+        
+        return {
+            total,
+            completed,
+            rate: total > 0 ? Math.round((completed / total) * 100) : 0
         };
     }
 };
 
 const Analytics = {
-    calculateStreak(completions, habitCount) {
-        if (!completions || habitCount === 0) return 0;
+    calculateStreak(days) {
+        if (!days || Object.keys(days).length === 0) return 0;
+        
+        // Get all completed days sorted by date
+        const completedDays = Object.entries(days)
+            .filter(([key, day]) => day.isCompleted && day.stats?.rate >= 80)
+            .map(([key, day]) => ({
+                key,
+                date: new Date(`${day.date}T${day.wakeTime}:00`)
+            }))
+            .sort((a, b) => b.date - a.date);
+        
+        if (completedDays.length === 0) return 0;
         
         let streak = 0;
-        let date = new Date();
+        let expectedDate = new Date();
         
-        for (let i = 0; i < 365; i++) {
-            const key = TimeUtils.getDateKey(date);
-            const completed = completions[key] || [];
-            const rate = habitCount > 0 ? completed.length / habitCount : 0;
+        for (const dayInfo of completedDays) {
+            const daysDiff = Math.floor((expectedDate - dayInfo.date) / (1000 * 60 * 60 * 24));
             
-            if (rate >= 0.8) {
+            if (daysDiff <= 1) {
                 streak++;
-                date.setDate(date.getDate() - 1);
+                expectedDate = new Date(dayInfo.date);
+                expectedDate.setDate(expectedDate.getDate() - 1);
             } else {
                 break;
             }
@@ -518,62 +692,72 @@ const Analytics = {
         return streak;
     },
 
-    calculateWeeklyRate(completions, habitCount) {
-        if (!completions || habitCount === 0) return 0;
+    calculateWeeklyRate(days) {
+        if (!days || Object.keys(days).length === 0) return 0;
+        
+        const now = new Date();
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
         
         let total = 0;
         let completed = 0;
         
-        for (let i = 0; i < 7; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const key = TimeUtils.getDateKey(date);
-            const dayCompleted = completions[key] || [];
-            
-            total += habitCount;
-            completed += dayCompleted.length;
-        }
+        Object.entries(days).forEach(([key, day]) => {
+            const dayDate = new Date(`${day.date}T${day.wakeTime}:00`);
+            if (dayDate >= weekAgo && dayDate <= now) {
+                total += day.stats?.total || 0;
+                completed += day.stats?.completed || 0;
+            }
+        });
         
         return total > 0 ? Math.round((completed / total) * 100) : 0;
     },
 
-    calculateDailyStats(data, habits) {
-        if (!data || !habits) return null;
+    calculateDailyStats(days) {
+        if (!days) return null;
         
-        const today = TimeUtils.getDateKey();
-        const yesterday = TimeUtils.getDateKey(new Date(Date.now() - 86400000));
+        const now = new Date();
+        const today = TimeUtils.getDateKey(now);
+        const yesterday = TimeUtils.getDateKey(new Date(now.getTime() - 86400000));
         
-        const todayCompleted = (data.completions?.[today] || []).length;
-        const yesterdayCompleted = (data.completions?.[yesterday] || []).length;
+        // Find today's and yesterday's days
+        let todayStats = { completed: 0, total: 0, rate: 0 };
+        let yesterdayStats = { completed: 0, total: 0, rate: 0 };
         
-        let weekTotal = 0, weekCompleted = 0;
-        for (let i = 0; i < 7; i++) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            const key = TimeUtils.getDateKey(date);
-            weekTotal += habits.length;
-            weekCompleted += (data.completions?.[key] || []).length;
-        }
-
-        let allTimeTotal = 0, allTimeCompleted = 0;
-        if (data.completions) {
-            Object.keys(data.completions).forEach(date => {
-                allTimeTotal += habits.length;
-                allTimeCompleted += data.completions[date].length;
-            });
-        }
-
+        Object.entries(days).forEach(([key, day]) => {
+            if (day.date === today && !day.isCompleted) {
+                todayStats = day.stats || todayStats;
+            } else if (day.date === yesterday) {
+                yesterdayStats = day.stats || yesterdayStats;
+            }
+        });
+        
+        // Calculate week stats
+        let weekTotal = 0;
+        let weekCompleted = 0;
+        const weekAgo = new Date(now);
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        
+        Object.entries(days).forEach(([key, day]) => {
+            const dayDate = new Date(`${day.date}T${day.wakeTime}:00`);
+            if (dayDate >= weekAgo && dayDate <= now) {
+                weekTotal += day.stats?.total || 0;
+                weekCompleted += day.stats?.completed || 0;
+            }
+        });
+        
+        // Calculate all time stats
+        let allTimeTotal = 0;
+        let allTimeCompleted = 0;
+        
+        Object.values(days).forEach(day => {
+            allTimeTotal += day.stats?.total || 0;
+            allTimeCompleted += day.stats?.completed || 0;
+        });
+        
         return {
-            today: {
-                completed: todayCompleted,
-                total: habits.length,
-                rate: habits.length > 0 ? Math.round((todayCompleted / habits.length) * 100) : 0
-            },
-            yesterday: {
-                completed: yesterdayCompleted,
-                total: habits.length,
-                rate: habits.length > 0 ? Math.round((yesterdayCompleted / habits.length) * 100) : 0
-            },
+            today: todayStats,
+            yesterday: yesterdayStats,
             week: {
                 completed: weekCompleted,
                 total: weekTotal,

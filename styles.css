@@ -343,11 +343,15 @@ body {
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
+    transition: transform 0.1s ease, opacity 0.1s ease;
 }
 
 /* Active drag handle cursor */
-.drag-handle:active {
+.drag-handle:active,
+.drag-handle.pressed {
     cursor: grabbing;
+    transform: scale(0.95);
+    opacity: 0.8;
 }
 
 /* Expanded tile content area */

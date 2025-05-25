@@ -150,14 +150,8 @@
             <!-- Timeline viewport -->
             <div class="timeline-viewport" x-ref="viewport" @scroll="handleViewportScroll">
                 <div class="timeline-container" 
-                     x-ref="timeline"
-                     :style="`height: ${timelineHeight}px`"
-                     @touchstart="handleTouchStart"
-                     @touchmove="handleTouchMove"
-                     @touchend="handleTouchEnd"
-                     @mousedown="handleMouseDown"
-                     @mousemove="handleMouseMove"
-                     @mouseup="handleMouseUp">
+					 x-ref="timeline"
+					 :style="`height: ${timelineHeight}px`">
                     
                     <div class="timeline-content">
                         <!-- Hour lines -->

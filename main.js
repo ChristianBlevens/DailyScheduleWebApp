@@ -29,7 +29,6 @@ document.addEventListener('alpine:init', () => {
         dragTimeDisplay: '',
         draggingHabitId: null,
         dragStartY: 0,
-        touchStartTime: 0,
         
         // Form state
         editingHabit: null,
@@ -170,50 +169,14 @@ document.addEventListener('alpine:init', () => {
             return timeline.timeStr;
         },
 
-        // Handle touch drag start
-        handleTouchStart(event) {
-            if (event.target.closest('.drag-handle')) {
-                const habitId = event.target.closest('.drag-handle').dataset.habitId;
-                this.touchStartTime = Date.now();
-                this.handleDragStart(habitId, event.touches[0].clientY);
-            }
+        // Get the drag handle element if the target is within one
+        getDragHandle(target) {
+            return target.closest('.drag-handle');
         },
 
-        // Handle touch drag move
-        handleTouchMove(event) {
-            if (this.isDragging) {
-                event.preventDefault();
-                this.handleDragMove(event.touches[0].clientY);
-            }
-        },
-
-        // Handle touch drag end
-        handleTouchEnd(event) {
-            if (this.isDragging) {
-                this.handleDragEnd();
-            }
-        },
-
-        // Handle mouse drag start
-        handleMouseDown(event) {
-            if (event.target.closest('.drag-handle')) {
-                const habitId = event.target.closest('.drag-handle').dataset.habitId;
-                this.handleDragStart(habitId, event.clientY);
-            }
-        },
-
-        // Handle mouse drag move
-        handleMouseMove(event) {
-            if (this.isDragging) {
-                this.handleDragMove(event.clientY);
-            }
-        },
-
-        // Handle mouse drag end
-        handleMouseUp(event) {
-            if (this.isDragging) {
-                this.handleDragEnd();
-            }
+        // Get habit ID from drag handle
+        getHabitIdFromHandle(handle) {
+            return handle ? handle.dataset.habitId : null;
         },
 
         // Start dragging a habit
@@ -251,11 +214,22 @@ document.addEventListener('alpine:init', () => {
                 this.dragTimeDisplay = TimeUtils.formatTime(time, true);
             }
             
-            // Auto-scroll when dragging near edges
-            if (clientY < 100) {
-                window.scrollBy(0, -10);
-            } else if (clientY > window.innerHeight - 100) {
-                window.scrollBy(0, 10);
+            // Auto-scroll when dragging near edges with smooth acceleration
+            const viewportTop = rect.top;
+            const viewportBottom = rect.bottom;
+            const scrollZone = 100; // pixels from edge to start scrolling
+            const maxScrollSpeed = 15;
+            
+            if (clientY < viewportTop + scrollZone) {
+                // Scroll up - faster as you get closer to edge
+                const distance = viewportTop + scrollZone - clientY;
+                const scrollSpeed = Math.min(maxScrollSpeed, (distance / scrollZone) * maxScrollSpeed);
+                window.scrollBy(0, -scrollSpeed);
+            } else if (clientY > viewportBottom - scrollZone) {
+                // Scroll down - faster as you get closer to edge
+                const distance = clientY - (viewportBottom - scrollZone);
+                const scrollSpeed = Math.min(maxScrollSpeed, (distance / scrollZone) * maxScrollSpeed);
+                window.scrollBy(0, scrollSpeed);
             }
         },
 
@@ -932,6 +906,7 @@ document.addEventListener('alpine:init', () => {
         },
 
         // Set up responsive and touch handlers
+        // Set up responsive and touch handlers
         setupResponsiveHandlers() {
             // Set up resize observer
             if (this.resizeObserver) {
@@ -947,34 +922,74 @@ document.addEventListener('alpine:init', () => {
                 this.resizeObserver.observe(timeline);
             }
             
-            // Set up touch gestures with Hammer.js
+            // Set up Hammer.js for unified touch/mouse handling
             if (this.hammerInstance) {
                 this.hammerInstance.destroy();
             }
             
             if (timeline && typeof Hammer !== 'undefined') {
-                this.hammerInstance = new Hammer(timeline);
-                this.hammerInstance.get('pan').set({ direction: Hammer.DIRECTION_VERTICAL });
+                // Create Hammer instance with custom options
+                this.hammerInstance = new Hammer.Manager(timeline, {
+                    recognizers: [
+                        [Hammer.Pan, { 
+                            direction: Hammer.DIRECTION_VERTICAL,
+                            threshold: 5
+                        }],
+                        [Hammer.Press, {
+                            time: 0,
+                            threshold: 5
+                        }]
+                    ]
+                });
                 
-                // Handle pan start
+                let dragHandle = null;
+                let habitId = null;
+                
+                // Handle press (start of potential drag)
+                this.hammerInstance.on('press', (ev) => {
+                    dragHandle = this.getDragHandle(ev.target);
+                    if (dragHandle) {
+                        habitId = this.getHabitIdFromHandle(dragHandle);
+                        // Visual feedback on press
+                        dragHandle.classList.add('pressed');
+                    }
+                });
+                
+                // Handle pan start (drag begins)
                 this.hammerInstance.on('panstart', (ev) => {
-                    if (ev.target.closest('.drag-handle')) {
-                        const habitId = ev.target.closest('.drag-handle').dataset.habitId;
+                    if (dragHandle && habitId) {
                         this.handleDragStart(habitId, ev.center.y);
+                        ev.preventDefault();
                     }
                 });
                 
-                // Handle pan move
+                // Handle pan move (dragging)
                 this.hammerInstance.on('panmove', (ev) => {
-                    if (this.isDragging) {
+                    if (this.isDragging && habitId) {
                         this.handleDragMove(ev.center.y);
+                        ev.preventDefault();
                     }
                 });
                 
-                // Handle pan end
-                this.hammerInstance.on('panend', () => {
+                // Handle pan end (drag complete)
+                this.hammerInstance.on('panend pancancel', (ev) => {
                     if (this.isDragging) {
                         this.handleDragEnd();
+                    }
+                    // Clean up visual feedback
+                    if (dragHandle) {
+                        dragHandle.classList.remove('pressed');
+                        dragHandle = null;
+                        habitId = null;
+                    }
+                });
+                
+                // Handle press up without pan (just a tap)
+                this.hammerInstance.on('pressup', (ev) => {
+                    if (dragHandle && !this.isDragging) {
+                        dragHandle.classList.remove('pressed');
+                        dragHandle = null;
+                        habitId = null;
                     }
                 });
             }

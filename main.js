@@ -313,7 +313,6 @@ document.addEventListener('alpine:init', () => {
                 // Set up DOM-dependent features after render
                 this.$nextTick(() => {
                     this.setupResponsiveHandlers();
-                    this.setupDragDrop();
                     this.updateVisibleRange();
                     this.scrollToCurrentTime();
                     
@@ -603,9 +602,8 @@ document.addEventListener('alpine:init', () => {
                 
                 this.updateCurrentTimePosition();
                 
-                // Re-setup drag and drop after timeline update
+                // Update after timeline update
                 this.$nextTick(() => {
-                    this.setupDragDrop();
                     this.updateVisibleRange();
                 });
             } catch (error) {
@@ -882,30 +880,6 @@ document.addEventListener('alpine:init', () => {
             }
         },
 
-        // Set up drag and drop functionality
-        setupDragDrop() {
-            try {
-                const container = document.getElementById('habits-container');
-                if (!container || typeof Sortable === 'undefined') return;
-                
-                // Destroy existing instance
-                if (this.sortableInstance) {
-                    this.sortableInstance.destroy();
-                }
-                
-                // Create new Sortable instance (disabled - using custom drag)
-                this.sortableInstance = Sortable.create(container, {
-                    handle: '.drag-handle',
-                    animation: 0,
-                    disabled: true,
-                    forceFallback: true
-                });
-            } catch (error) {
-                console.error('Setup drag drop error:', error);
-            }
-        },
-
-        // Set up responsive and touch handlers
         // Set up responsive and touch handlers
         setupResponsiveHandlers() {
             // Set up resize observer
